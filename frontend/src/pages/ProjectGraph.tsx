@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, ScanSearch, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ChevronDown, RefreshCw, ScanSearch, TriangleAlert } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -14,8 +14,9 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
+import { CommitsCard } from '@/components/graph/CommitsCard'
+import { mockCommits } from '@/lib/mock-commits'
 import { GraphCanvas } from '@/components/graph/GraphCanvas'
-import { GraphLegend } from '@/components/graph/GraphLegend'
 import { ThemeToggle } from '@/components/theme-toggle'
 import {
   ApiError,
@@ -36,6 +37,7 @@ export default function ProjectGraph() {
   const { id = '' } = useParams()
   const [state, setState] = useState<State>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  const [tasksOpen, setTasksOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -177,7 +179,7 @@ export default function ProjectGraph() {
           key={`${project.id}-${graph.nodes.length}-${graph.relations.length}`}
           graph={graph}
           header={
-            <div className="flex max-w-72 flex-col gap-3">
+            <div className="flex max-h-[calc(100dvh-4rem)] w-72 flex-col gap-3 overflow-y-auto">
               <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" nativeButton={false} render={<Link to="/" />}>
                   <ArrowLeft />
@@ -201,11 +203,28 @@ export default function ProjectGraph() {
                   {project.path}
                 </p>
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="secondary">{services} services</Badge>
                 <Badge variant="outline">{features} features</Badge>
+                {/* Same chip shape as the counts, but this one opens the list below it. */}
+                <Badge
+                  render={
+                    <button
+                      type="button"
+                      aria-expanded={tasksOpen}
+                      onClick={() => setTasksOpen((open) => !open)}
+                    />
+                  }
+                  variant={tasksOpen ? 'secondary' : 'outline'}
+                  className="cursor-pointer gap-1 hover:bg-muted"
+                >
+                  {mockCommits.length} tasks
+                  <ChevronDown
+                    className={tasksOpen ? 'size-3 rotate-180 transition-transform' : 'size-3 transition-transform'}
+                  />
+                </Badge>
               </div>
-              <GraphLegend />
+              {tasksOpen && <CommitsCard />}
             </div>
           }
         />

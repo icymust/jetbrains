@@ -12,7 +12,7 @@ import type { Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { ChatDialog } from '@/components/graph/ChatDialog'
-import { CommitsCard } from '@/components/graph/CommitsCard'
+import { CreateActionDialog } from '@/components/graph/CreateActionDialog'
 import { NodeInspector } from '@/components/graph/NodeInspector'
 import { TestsPanel } from '@/components/graph/TestsPanel'
 import FeatureNode from '@/components/graph/FeatureNode'
@@ -50,6 +50,7 @@ export function GraphCanvas({ graph, header }: { graph: Graph; header?: React.Re
   const [testsNodeId, setTestsNodeId] = useState<string | null>(null)
   /** The node and action the chat modal was opened from, or null while it is closed. */
   const [chat, setChat] = useState<{ nodeId: string; action: ChatAction } | null>(null)
+  const [createActionOpen, setCreateActionOpen] = useState(false)
 
   const selectedNode = selectedId
     ? (graph.nodes.find((node) => node.id === selectedId) ?? null)
@@ -62,10 +63,11 @@ export function GraphCanvas({ graph, header }: { graph: Graph; header?: React.Re
     (nodeId: string, action: ChatAction) => setChat({ nodeId, action }),
     [],
   )
+  const openCreateAction = useCallback(() => setCreateActionOpen(true), [])
   // Memoised so opening a menu does not re-render every node through the context.
   const menu = useMemo(
-    () => ({ openNodeId: menuNodeId, close: closeMenu, openTests, openChat }),
-    [menuNodeId, closeMenu, openTests, openChat],
+    () => ({ openNodeId: menuNodeId, close: closeMenu, openTests, openChat, openCreateAction }),
+    [menuNodeId, closeMenu, openTests, openChat, openCreateAction],
   )
 
   const testsNode = testsNodeId
@@ -121,32 +123,31 @@ export function GraphCanvas({ graph, header }: { graph: Graph; header?: React.Re
       >
         {header && <Panel position="top-left">{header}</Panel>}
 
-        <Panel position="top-right">
-          {/* One right-hand column, so the Tests window docks under the info card. The
-              marker lets the Tests card tell outside clicks from ones on this sidebar.
-              The column is capped and scrolls: with every card open it would otherwise
-              run past the bottom of the window, putting the last one out of reach. */}
-          <div
-            data-graph-sidebar
-            className="flex max-h-[calc(100dvh-4rem)] w-72 flex-col gap-3 overflow-y-auto"
-          >
-            {selectedNode && (
-              <NodeInspector
-                node={selectedNode}
-                graph={graph}
-                onClose={() => setSelectedId(null)}
-              />
-            )}
-            {testsNode && (
-              // Keyed by node: choosing Test on another node restarts the panel for it
-              // rather than leaving the previous node's figures on screen.
-              <TestsPanel key={testsNode.id} node={testsNode} onClose={closeTests} />
-            )}
-            {/* Branch history describes the project, not the selection, so it always
-                shows and sits last — the node cards keep the position they had. */}
-            <CommitsCard />
-          </div>
-        </Panel>
+        {(selectedNode || testsNode) && (
+          <Panel position="top-right">
+            {/* One right-hand column, so the Tests window docks under the info card. The
+                marker lets the Tests card tell outside clicks from ones on this sidebar.
+                It is capped and scrolls: both cards open would otherwise run past the
+                bottom of the window, putting the lower one out of reach. */}
+            <div
+              data-graph-sidebar
+              className="flex max-h-[calc(100dvh-4rem)] w-72 flex-col gap-3 overflow-y-auto"
+            >
+              {selectedNode && (
+                <NodeInspector
+                  node={selectedNode}
+                  graph={graph}
+                  onClose={() => setSelectedId(null)}
+                />
+              )}
+              {testsNode && (
+                // Keyed by node: choosing Test on another node restarts the panel for it
+                // rather than leaving the previous node's figures on screen.
+                <TestsPanel key={testsNode.id} node={testsNode} onClose={closeTests} />
+              )}
+            </div>
+          </Panel>
+        )}
 
         <MiniMap
           pannable
@@ -176,6 +177,9 @@ export function GraphCanvas({ graph, header }: { graph: Graph; header?: React.Re
           onClose={() => setChat(null)}
         />
       )}
+
+      {/* Outside ReactFlow: the menu that opens it unmounts as soon as it is dismissed. */}
+      <CreateActionDialog open={createActionOpen} onOpenChange={setCreateActionOpen} />
     </NodeMenuContext>
   )
 }

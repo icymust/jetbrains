@@ -1,8 +1,9 @@
 import { Handle, NodeToolbar, Position } from '@xyflow/react'
-import { ArrowUpRight, FlaskConical, Lightbulb, Search } from 'lucide-react'
+import { ArrowUpRight, FlaskConical, Lightbulb, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { actionIcons, useCustomActions } from '@/lib/custom-actions'
 import { useNodeMenu } from '@/lib/node-menu-context'
 
 const actions = [
@@ -26,7 +27,8 @@ export function NodeActions({
   nodeId: string
   name: string
 }) {
-  const { close, openTests, openChat } = useNodeMenu()
+  const { close, openTests, openChat, openCreateAction } = useNodeMenu()
+  const customActions = useCustomActions()
 
   return (
     <NodeToolbar
@@ -62,6 +64,45 @@ export function NodeActions({
             {label}
           </Button>
         ))}
+
+        {customActions.map((action) => {
+          const Icon = actionIcons[action.icon]
+          return (
+            <Button
+              key={action.id}
+              variant="ghost"
+              size="sm"
+              className="justify-start"
+              onClick={(event) => {
+                event.stopPropagation()
+                close()
+                // Custom actions store a prompt or script; nothing sends or runs them.
+                toast(`${action.name} — ${name}`, {
+                  description: 'Custom action. Nothing runs it yet.',
+                })
+              }}
+            >
+              <Icon />
+              {action.name}
+            </Button>
+          )
+        })}
+
+        <div className="my-0.5 border-t" />
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="justify-start text-muted-foreground"
+          onClick={(event) => {
+            event.stopPropagation()
+            close()
+            openCreateAction()
+          }}
+        >
+          <Plus />
+          New action
+        </Button>
       </div>
     </NodeToolbar>
   )

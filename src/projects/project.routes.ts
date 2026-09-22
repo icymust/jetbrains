@@ -4,7 +4,8 @@ import { realpathSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
-import { analyzeProject, createOpenAIRequester, type GraphRequester } from '../ai/openai-analyzer.js';
+import { analyzeProject, type GraphRequester } from '../ai/openai-analyzer.js';
+import { createConfiguredRequester } from '../ai/provider.js';
 import { scanProject } from '../analyzer/scanner.js';
 import { toPublicGraph } from '../analyzer/types.js';
 import { AnalysisBusyError, CommitMonitor, type MonitoredProject } from '../git/commit-monitor.js';
@@ -48,7 +49,7 @@ function validateProjectPath(input: string): string {
 export function registerProjectRoutes(
   app: FastifyInstance,
   database: DatabaseSync,
-  requester: GraphRequester = createOpenAIRequester(),
+  requester: GraphRequester = createConfiguredRequester(),
 ): void {
   const findProject = (id: string): Project | undefined =>
     database.prepare('SELECT id, name, path FROM projects WHERE id = ?').get(id) as Project | undefined;

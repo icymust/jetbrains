@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type OpenAI from 'openai';
 import type { ScanResult } from '../analyzer/scanner.js';
 import { toPublicGraph } from '../analyzer/types.js';
-import { AnalysisError, analyzeProject, buildModelInput, createOpenAIRequester } from './openai-analyzer.js';
+import { AnalysisError, analyzeProject, buildModelInput, createOpenAIRequester, instructions } from './openai-analyzer.js';
 
 const scan: ScanResult = {
   directories: ['src', 'src/auth'],
@@ -57,6 +57,58 @@ test('evidence-based service connections keep their free-text labels', async () 
   graph.relations.push({ parent_id: 'svc', child_id: 'orders', label: 'gRPC' });
   const analyzed = await analyzeProject(scan, { request: async () => JSON.stringify(graph) });
   assert.equal(analyzed.relations.find((relation) => relation.label === 'gRPC')?.parent_id, analyzed.nodes[0]?.id);
+});
+
+test('prompt favors domain features and direct evidence-based service connections', () => {
+  assert.match(instructions, /meaningful application or domain features/);
+  assert.match(instructions, /clients and servers, controllers, routes, repositories, adapters, SDK wrappers/);
+  assert.match(instructions, /evidence for features and relations, not feature nodes/);
+  assert.match(instructions, /direct directed service-to-service relation/);
+  assert.match(instructions, /observed protocol such as HTTP or gRPC/);
+  assert.match(instructions, /relation labeled "contains"/);
+});
+
+test('mocked domain graph keeps direct service relations, evidence, and stable IDs', async () => {
+  const repository: ScanResult = {
+    directories: ['billing', 'catalog'],
+    files: [
+      { path: 'billing/server.ts', content: 'registerCheckoutRoutes()', truncated: false },
+      { path: 'billing/catalog-client.ts', content: 'fetch("/inventory")', truncated: false },
+      { path: 'catalog/server.ts', content: 'registerInventoryRoutes()', truncated: false },
+    ],
+    truncated: false,
+  };
+  const graph = {
+    nodes: [
+      { id: 'a', name: 'Billing', type: 'service', evidence_paths: ['billing/server.ts'] },
+      { id: 'b', name: 'Catalog', type: 'service', evidence_paths: ['catalog/server.ts'] },
+      { id: 'c', name: 'Checkout', type: 'feature', evidence_paths: ['billing/server.ts'] },
+      { id: 'd', name: 'Inventory', type: 'feature', evidence_paths: ['catalog/server.ts'] },
+    ],
+    relations: [
+      { parent_id: 'a', child_id: 'c', label: 'contains' },
+      { parent_id: 'b', child_id: 'd', label: 'contains' },
+      { parent_id: 'a', child_id: 'b', label: 'HTTP' },
+    ],
+  };
+  const first = await analyzeProject(repository, { request: async () => JSON.stringify(graph) });
+  const renamed = structuredClone(graph);
+  for (const node of renamed.nodes) node.id = `new-${node.id}`;
+  for (const relation of renamed.relations) {
+    relation.parent_id = `new-${relation.parent_id}`;
+    relation.child_id = `new-${relation.child_id}`;
+  }
+  const second = await analyzeProject(repository, { request: async () => JSON.stringify(renamed) });
+
+  assert.deepEqual(first, second);
+  assert.deepEqual(first.nodes.map((node) => node.name), ['Billing', 'Catalog', 'Checkout', 'Inventory']);
+  assert.deepEqual(first.nodes[2]?.evidence_paths, ['billing/server.ts']);
+  assert.deepEqual(first.relations.map((relation) => relation.label), ['contains', 'contains', 'HTTP']);
+  assert.deepEqual(first.relations[2], {
+    parent_id: first.nodes[0]?.id,
+    child_id: first.nodes[1]?.id,
+    label: 'HTTP',
+  });
 });
 
 test('analyzer rejects unsupported evidence, invalid relations, duplicate nodes, and empty graphs', async () => {

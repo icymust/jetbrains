@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, ScanSearch, TriangleAlert } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +21,6 @@ import {
   ApiError,
   getProject,
   getProjectNodes,
-  loadProject,
   type Graph,
   type Project,
 } from '@/lib/api'
@@ -37,7 +35,6 @@ type State =
 export default function ProjectGraph() {
   const { id = '' } = useParams()
   const [state, setState] = useState<State>({ status: 'loading' })
-  const [analyzing, setAnalyzing] = useState(false)
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
@@ -81,27 +78,8 @@ export default function ProjectGraph() {
     setAttempt((value) => value + 1)
   }, [])
 
-  const analyze = useCallback(async () => {
-    setAnalyzing(true)
-    try {
-      const graph = await loadProject(id)
-      setState((current) =>
-        current.status === 'ready' || current.status === 'unanalyzed'
-          ? { status: 'ready', project: current.project, graph }
-          : current,
-      )
-      toast.success('Analysis finished', {
-        description: `${graph.nodes.length} nodes, ${graph.relations.length} relations.`,
-      })
-    } catch (error) {
-      toast.error('Analysis failed', {
-        description:
-          error instanceof ApiError ? error.message : 'The analysis could not be run.',
-      })
-    } finally {
-      setAnalyzing(false)
-    }
-  }, [id])
+  /** Running an analysis is the loader page's job, so every entry point leads there. */
+  const analyzingHref = `/projects/${id}/analyzing`
 
   if (state.status === 'loading') {
     return (
@@ -152,9 +130,9 @@ export default function ProjectGraph() {
           </EmptyHeader>
           <EmptyContent>
             <div className="flex gap-2">
-              <Button disabled={analyzing} onClick={() => void analyze()}>
-                {analyzing ? <Spinner /> : <ScanSearch />}
-                {analyzing ? 'Analyzing…' : 'Analyze now'}
+              <Button nativeButton={false} render={<Link to={analyzingHref} />}>
+                <ScanSearch />
+                Analyze now
               </Button>
               <Button variant="ghost" nativeButton={false} render={<Link to="/" />}>
                 Back
@@ -186,8 +164,8 @@ export default function ProjectGraph() {
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button disabled={analyzing} onClick={() => void analyze()}>
-                {analyzing ? <Spinner /> : <RefreshCw />}
+              <Button nativeButton={false} render={<Link to={analyzingHref} />}>
+                <RefreshCw />
                 Re-analyze
               </Button>
             </EmptyContent>
@@ -210,10 +188,10 @@ export default function ProjectGraph() {
                   size="icon"
                   aria-label="Re-analyze this project"
                   title="Re-analyze this project"
-                  disabled={analyzing}
-                  onClick={() => void analyze()}
+                  nativeButton={false}
+                  render={<Link to={analyzingHref} />}
                 >
-                  {analyzing ? <Spinner /> : <RefreshCw />}
+                  <RefreshCw />
                 </Button>
                 <ThemeToggle className="ml-auto" />
               </div>

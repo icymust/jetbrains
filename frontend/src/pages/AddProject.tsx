@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, TriangleAlert } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -23,9 +22,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { ApiError, createProject, loadProject, type Project } from '@/lib/api'
+import { ApiError, createProject, type Project } from '@/lib/api'
 
-type Phase = 'idle' | 'creating' | 'analyzing'
+type Phase = 'idle' | 'creating'
 
 interface FieldErrors {
   name?: string
@@ -40,26 +39,8 @@ export default function AddProject() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
-  /** Set when creation succeeded but analysis did not — the project exists on the server. */
-  const [unanalyzed, setUnanalyzed] = useState<Project | null>(null)
 
   const busy = phase !== 'idle'
-
-  async function analyze(project: Project) {
-    setPhase('analyzing')
-    setFormError(null)
-    try {
-      await loadProject(project.id)
-      toast.success(`Mapped ${project.name}`)
-      navigate(`/projects/${project.id}/graph`, { replace: true })
-    } catch (error) {
-      setUnanalyzed(project)
-      setFormError(
-        error instanceof ApiError ? error.message : 'The analysis failed unexpectedly.',
-      )
-      setPhase('idle')
-    }
-  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -75,7 +56,6 @@ export default function AddProject() {
     if (Object.keys(errors).length > 0) return
 
     setFormError(null)
-    setUnanalyzed(null)
     setPhase('creating')
 
     let project: Project
@@ -94,7 +74,8 @@ export default function AddProject() {
       return
     }
 
-    await analyze(project)
+    // The analysis itself belongs to the loader page, which owns its progress and errors.
+    navigate(`/projects/${project.id}/analyzing`, { replace: true })
   }
 
   return (
@@ -163,51 +144,19 @@ export default function AddProject() {
             {formError && (
               <Alert variant="destructive" className="mt-6">
                 <TriangleAlert />
-                <AlertTitle>
-                  {unanalyzed ? 'Project saved, but the analysis failed' : 'Could not add project'}
-                </AlertTitle>
+                <AlertTitle>Could not add project</AlertTitle>
                 <AlertDescription>
                   <p>{formError}</p>
-                  {unanalyzed && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void analyze(unanalyzed)}
-                      >
-                        Retry analysis
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="no-underline"
-                        nativeButton={false}
-                        render={<Link to={`/projects/${unanalyzed.id}/graph`} />}
-                      >
-                        Open anyway
-                      </Button>
-                    </div>
-                  )}
                 </AlertDescription>
               </Alert>
             )}
           </CardContent>
 
-          <CardFooter className="flex-col items-stretch gap-2">
-            <Button type="submit" disabled={busy}>
+          <CardFooter>
+            <Button type="submit" className="w-full" disabled={busy}>
               {busy && <Spinner />}
-              {phase === 'creating'
-                ? 'Creating project…'
-                : phase === 'analyzing'
-                  ? 'Analyzing repository…'
-                  : 'Add project'}
+              {busy ? 'Creating project…' : 'Add'}
             </Button>
-            {phase === 'analyzing' && (
-              <p className="text-center text-xs text-muted-foreground">
-                The first analysis calls an AI model and can take a while.
-              </p>
-            )}
           </CardFooter>
         </form>
       </Card>

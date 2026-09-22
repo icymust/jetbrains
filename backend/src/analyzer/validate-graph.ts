@@ -15,6 +15,11 @@ function nonemptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function diagnosticId(value: unknown): string {
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9_.:-]{1,80}$/.test(value)) return '<invalid or redacted ID>';
+  return JSON.stringify(value);
+}
+
 function stableId(type: 'service' | 'feature', name: string, parentName = ''): string {
   const identity = `${parentName.toLowerCase().trim()}\0${name.toLowerCase().trim()}`;
   const slug = name.normalize('NFKD').toLowerCase()
@@ -58,22 +63,31 @@ export function validateGraph(raw: unknown, scan: ScanResult): AnalyzedGraph {
   const parents = new Map<string, string>();
   const uniqueRelations = new Set<string>();
   const relations: ProjectRelation[] = [];
-  for (const value of raw.relations) {
-    if (!isRecord(value) || !hasOnlyKeys(value, ['parent_id', 'child_id', 'label']) ||
-        !nonemptyString(value.parent_id) || !nonemptyString(value.child_id) ||
-        !nonemptyString(value.label) || value.label.trim().length > 40 ||
-        /[\r\n\t]/.test(value.label)) {
-      throw new Error('Invalid relation');
+  for (const [index, value] of raw.relations.entries()) {
+    const at = `Relation ${index}`;
+    if (!isRecord(value)) throw new Error(`${at}: expected an object`);
+    if (!hasOnlyKeys(value, ['parent_id', 'child_id', 'label'])) {
+      throw new Error(`${at}: expected only parent_id, child_id, and label fields`);
+    }
+    if (!nonemptyString(value.parent_id)) throw new Error(`${at}: parent_id must be a nonblank string`);
+    if (!nonemptyString(value.child_id)) throw new Error(`${at}: child_id must be a nonblank string`);
+    const endpoints = `${diagnosticId(value.parent_id)} -> ${diagnosticId(value.child_id)}`;
+    if (!nonemptyString(value.label)) throw new Error(`${at} (${endpoints}): label must be a nonblank string`);
+    if (value.label.trim().length > 40) {
+      throw new Error(`${at} (${endpoints}): label exceeds 40 characters after trimming (${value.label.trim().length})`);
+    }
+    if (/[\r\n\t]/.test(value.label)) {
+      throw new Error(`${at} (${endpoints}): label contains a tab or line break`);
     }
     const parent = nodesByTemporaryId.get(value.parent_id);
     const child = nodesByTemporaryId.get(value.child_id);
-    if (!parent || !child || parent.id === child.id) {
-      throw new Error('Relation must connect distinct existing nodes');
-    }
+    if (!parent) throw new Error(`${at} (${endpoints}): unknown parent_id ${diagnosticId(value.parent_id)}`);
+    if (!child) throw new Error(`${at} (${endpoints}): unknown child_id ${diagnosticId(value.child_id)}`);
+    if (parent.id === child.id) throw new Error(`${at} (${endpoints}): self-relation is not allowed`);
     if (parent.type === 'service' && child.type === 'feature' && value.label.trim().toLowerCase() === 'contains') {
       const previousParent = parents.get(child.id);
       if (previousParent && previousParent !== parent.id) {
-        throw new Error('Feature has multiple containing services');
+        throw new Error(`${at} (${endpoints}): feature already belongs to service ${diagnosticId(previousParent)}`);
       }
       parents.set(child.id, parent.id);
     }
@@ -89,7 +103,9 @@ export function validateGraph(raw: unknown, scan: ScanResult): AnalyzedGraph {
   const usedStableIds = new Set<string>();
   for (const node of nodesByTemporaryId.values()) {
     const parent = node.type === 'feature' ? nodesByTemporaryId.get(parents.get(node.id) ?? '') : undefined;
-    if (node.type === 'feature' && !parent) throw new Error('Feature has no service');
+    if (node.type === 'feature' && !parent) {
+      throw new Error(`Feature ${diagnosticId(node.id)} has no containing service`);
+    }
     const id = stableId(node.type, node.name, parent?.name);
     if (usedStableIds.has(id)) throw new Error('Duplicate service or feature name');
     usedStableIds.add(id);

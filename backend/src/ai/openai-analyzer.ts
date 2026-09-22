@@ -11,28 +11,34 @@ export const graphSchema = {
   properties: {
     nodes: {
       type: 'array',
+      minItems: 1,
+      maxItems: 100,
       items: {
         type: 'object',
         additionalProperties: false,
         required: ['id', 'name', 'type', 'evidence_paths'],
         properties: {
-          id: { type: 'string' },
-          name: { type: 'string' },
+          id: { type: 'string', pattern: '\\S' },
+          name: { type: 'string', pattern: '\\S' },
           type: { type: 'string', enum: ['service', 'feature'] },
-          evidence_paths: { type: 'array', items: { type: 'string' } },
+          evidence_paths: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'string' } },
         },
       },
     },
     relations: {
       type: 'array',
+      maxItems: 200,
       items: {
         type: 'object',
         additionalProperties: false,
         required: ['parent_id', 'child_id', 'label'],
         properties: {
-          parent_id: { type: 'string' },
-          child_id: { type: 'string' },
-          label: { type: 'string' },
+          parent_id: { type: 'string', pattern: '\\S' },
+          child_id: { type: 'string', pattern: '\\S' },
+          label: {
+            type: 'string',
+            pattern: '^[^\\S\\r\\n\\t]*(?:\\S(?:[^\\r\\n\\t]{0,38}\\S)?)[^\\S\\r\\n\\t]*$',
+          },
         },
       },
     },
@@ -76,10 +82,43 @@ export function createOpenAIRequester(client?: OpenAI): GraphRequester {
 }
 
 export class AnalysisError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
+  readonly diagnosticGraph?: {
+    nodes: Array<{ id: string; name: string; type: string }>;
+    relations: Array<{ parent_id: string; child_id: string; label: string }>;
+  };
+
+  constructor(message: string, options?: ErrorOptions, diagnosticGraph?: AnalysisError['diagnosticGraph']) {
     super(message, options);
     this.name = 'AnalysisError';
+    if (diagnosticGraph) {
+      Object.defineProperty(this, 'diagnosticGraph', { value: diagnosticGraph, enumerable: false });
+    }
   }
+}
+
+function diagnosticText(value: unknown): string {
+  if (typeof value !== 'string') return `<${typeof value}>`;
+  if (value.length > 80 || !/^[\p{L}\p{N} ._:/+-]*$/u.test(value) ||
+      /(?:sk-[a-zA-Z0-9_-]{8,}|OPENAI_API_KEY)/i.test(value)) return '<redacted>';
+  return value;
+}
+
+function summarizeModelGraph(value: unknown): NonNullable<AnalysisError['diagnosticGraph']> {
+  const graph = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+  const nodes = Array.isArray(graph.nodes) ? graph.nodes.slice(0, 100) : [];
+  const relations = Array.isArray(graph.relations) ? graph.relations.slice(0, 200) : [];
+  const field = (item: unknown, key: string): string =>
+    diagnosticText(typeof item === 'object' && item !== null && !Array.isArray(item)
+      ? (item as Record<string, unknown>)[key] : undefined);
+  return {
+    nodes: nodes.map((node) => ({ id: field(node, 'id'), name: field(node, 'name'), type: field(node, 'type') })),
+    relations: relations.map((relation) => ({
+      parent_id: field(relation, 'parent_id'),
+      child_id: field(relation, 'child_id'),
+      label: field(relation, 'label'),
+    })),
+  };
 }
 
 export async function analyzeProject(
@@ -97,9 +136,16 @@ export async function analyzeProject(
     throw new AnalysisError('Project analysis request failed', { cause: error });
   }
 
+  let parsed: unknown;
   try {
-    return validateGraph(JSON.parse(output), scan);
+    parsed = JSON.parse(output);
   } catch (error) {
     throw new AnalysisError('Project analysis returned an invalid graph', { cause: error });
+  }
+  try {
+    return validateGraph(parsed, scan);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unknown validation error';
+    throw new AnalysisError(`Project analysis returned an invalid graph: ${detail}`, { cause: error }, summarizeModelGraph(parsed));
   }
 }

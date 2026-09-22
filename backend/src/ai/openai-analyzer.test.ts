@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type OpenAI from 'openai';
 import type { ScanResult } from '../analyzer/scanner.js';
 import { toPublicGraph } from '../analyzer/types.js';
-import { AnalysisError, analyzeProject, buildModelInput, createOpenAIRequester, instructions } from './openai-analyzer.js';
+import { AnalysisError, analyzeProject, buildModelInput, createOpenAIRequester, graphSchema, instructions } from './openai-analyzer.js';
 
 const scan: ScanResult = {
   directories: ['src', 'src/auth'],
@@ -68,6 +68,29 @@ test('prompt favors domain features and direct evidence-based service connection
   assert.match(instructions, /relation labeled "contains"/);
 });
 
+test('strict output schema aligns expressible graph and relation constraints', () => {
+  assert.equal(graphSchema.properties.nodes.minItems, 1);
+  assert.equal(graphSchema.properties.nodes.maxItems, 100);
+  assert.equal(graphSchema.properties.relations.maxItems, 200);
+  const node = graphSchema.properties.nodes.items.properties;
+  const relation = graphSchema.properties.relations.items.properties;
+  assert.deepEqual(node.type.enum, ['service', 'feature']);
+  assert.equal(node.evidence_paths.minItems, 1);
+  assert.equal(node.evidence_paths.maxItems, 20);
+  for (const pattern of [node.id.pattern, node.name.pattern, relation.parent_id.pattern, relation.child_id.pattern]) {
+    const nonblank = new RegExp(pattern);
+    assert.equal(nonblank.test('  '), false);
+    assert.equal(nonblank.test('user-service'), true);
+  }
+  const label = new RegExp(relation.label.pattern);
+  for (const value of ['contains', 'HTTP', '  gRPC  ', 'x'.repeat(40), `  ${'x'.repeat(40)}  `]) {
+    assert.equal(label.test(value), true, value);
+  }
+  for (const value of ['', '   ', 'x'.repeat(41), 'HTTP\tcall', 'HTTP\ncall', 'HTTP\rcall', 'HTTP\t', 'HTTP\n', 'HTTP\r']) {
+    assert.equal(label.test(value), false, JSON.stringify(value));
+  }
+});
+
 test('mocked domain graph keeps direct service relations, evidence, and stable IDs', async () => {
   const repository: ScanResult = {
     directories: ['billing', 'catalog'],
@@ -126,6 +149,69 @@ test('analyzer rejects unsupported evidence, invalid relations, duplicate nodes,
       AnalysisError,
     );
   }
+});
+
+test('invalid relation diagnostics identify the offending field or endpoint', async () => {
+  const cases: Array<{ relation: unknown; message: RegExp }> = [
+    { relation: null, message: /Relation 0: expected an object/ },
+    { relation: { parent_id: 'svc', child_id: 'auth' }, message: /Relation 0: expected only parent_id, child_id, and label fields/ },
+    { relation: { parent_id: '', child_id: 'auth', label: 'contains' }, message: /Relation 0: parent_id must be a nonblank string/ },
+    { relation: { parent_id: 'svc', child_id: '', label: 'contains' }, message: /Relation 0: child_id must be a nonblank string/ },
+    { relation: { parent_id: 'svc', child_id: 'auth', label: '' }, message: /Relation 0 \("svc" -> "auth"\): label must be a nonblank string/ },
+    { relation: { parent_id: 'svc', child_id: 'auth', label: 42 }, message: /label must be a nonblank string/ },
+    { relation: { parent_id: 'svc', child_id: 'auth', label: 'x'.repeat(41) }, message: /label exceeds 40 characters after trimming \(41\)/ },
+    { relation: { parent_id: 'svc', child_id: 'auth', label: 'has\nline' }, message: /label contains a tab or line break/ },
+    { relation: { parent_id: 'missing', child_id: 'auth', label: 'uses' }, message: /unknown parent_id "missing"/ },
+    { relation: { parent_id: 'svc', child_id: 'missing', label: 'uses' }, message: /unknown child_id "missing"/ },
+    { relation: { parent_id: 'svc', child_id: 'svc', label: 'uses' }, message: /self-relation is not allowed/ },
+  ];
+  for (const { relation, message } of cases) {
+    await assert.rejects(
+      analyzeProject(scan, { request: async () => JSON.stringify({ ...modelGraph, relations: [relation] }) }),
+      (error: unknown) => error instanceof AnalysisError &&
+        error.cause instanceof Error && message.test(error.cause.message) && message.test(error.message),
+    );
+  }
+});
+
+test('feature ownership diagnostics identify conflicting or absent containing services', async () => {
+  const graph = structuredClone(modelGraph);
+  graph.nodes.push({ id: 'other', name: 'Other Service', type: 'service', evidence_paths: ['package.json'] });
+  graph.relations = [
+    { parent_id: 'svc', child_id: 'auth', label: 'contains' },
+    { parent_id: 'other', child_id: 'auth', label: 'contains' },
+  ];
+  await assert.rejects(
+    analyzeProject(scan, { request: async () => JSON.stringify(graph) }),
+    (error: unknown) => error instanceof AnalysisError && error.cause instanceof Error &&
+      /Relation 1 .*feature already belongs to service "svc"/.test(error.cause.message),
+  );
+  graph.relations = [];
+  await assert.rejects(
+    analyzeProject(scan, { request: async () => JSON.stringify(graph) }),
+    (error: unknown) => error instanceof AnalysisError && error.cause instanceof Error &&
+      /Feature "auth" has no containing service/.test(error.cause.message),
+  );
+});
+
+test('failed semantic validation retains a safe graph summary for manual inspection', async () => {
+  const graph = structuredClone(modelGraph);
+  graph.nodes[1]!.name = 'sk-exampleSecret123456';
+  graph.relations = [{ parent_id: 'svc', child_id: 'auth', label: 'x'.repeat(41) }];
+  await assert.rejects(
+    analyzeProject(scan, { request: async () => JSON.stringify(graph) }),
+    (error: unknown) => {
+      if (!(error instanceof AnalysisError) || !error.diagnosticGraph) return false;
+      assert.deepEqual(error.diagnosticGraph.relations, [
+        { parent_id: 'svc', child_id: 'auth', label: 'x'.repeat(41) },
+      ]);
+      assert.equal(error.diagnosticGraph.nodes[1]?.name, '<redacted>');
+      assert.equal(Object.keys(error).includes('diagnosticGraph'), false);
+      assert.equal(JSON.stringify(error.diagnosticGraph).includes('src/auth/login.ts'), false);
+      assert.equal(JSON.stringify(error.diagnosticGraph).includes('export function login'), false);
+      return true;
+    },
+  );
 });
 
 test('analyzer reports API failures without returning a graph', async () => {

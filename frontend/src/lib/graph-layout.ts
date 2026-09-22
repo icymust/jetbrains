@@ -71,17 +71,29 @@ function topLeft(centreX: number, centreY: number, size: number) {
 }
 
 export function toFlowGraph(graph: Graph): FlowGraph {
-  const services = graph.nodes.filter((node) => node.type === 'service')
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]))
   const featuresByService = new Map<string, typeof graph.nodes>()
+  const owned = new Set<string>()
 
   for (const relation of graph.relations) {
     if (relation.label !== 'contains') continue
-    const feature = graph.nodes.find((node) => node.id === relation.child_id)
+    const feature = byId.get(relation.child_id)
+    const service = byId.get(relation.parent_id)
     if (!feature || feature.type !== 'feature') continue
+    if (!service || service.type !== 'service') continue
+    // The backend allows only one containing service, but never trust that twice.
+    if (owned.has(feature.id)) continue
+    owned.add(feature.id)
     const siblings = featuresByService.get(relation.parent_id)
     if (siblings) siblings.push(feature)
     else featuresByService.set(relation.parent_id, [feature])
   }
+
+  // A feature with no containing service should not exist, but if one arrives it goes on
+  // the ring rather than vanishing from the picture.
+  const services = graph.nodes.filter(
+    (node) => node.type === 'service' || (node.type === 'feature' && !owned.has(node.id)),
+  )
 
   const alone = services.length < 2
 
@@ -104,11 +116,12 @@ export function toFlowGraph(graph: Graph): FlowGraph {
     const centreY = alone ? 0 : Math.sin(angle) * radius
 
     // A parent must be added before its children for React Flow to resolve `parentId`.
+    const size = service.type === 'service' ? SERVICE_SIZE : FEATURE_SIZE
     nodes.push({
       id: service.id,
-      type: 'service',
-      position: topLeft(centreX, centreY, SERVICE_SIZE),
-      data: { label: service.name, type: 'service' },
+      type: service.type,
+      position: topLeft(centreX, centreY, size),
+      data: { label: service.name, type: service.type },
     })
 
     const features = featuresByService.get(service.id) ?? []

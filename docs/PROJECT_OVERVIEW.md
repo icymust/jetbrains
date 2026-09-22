@@ -39,7 +39,7 @@ There is no root-level package.json or workspace: the two halves are installed a
 | Language | TypeScript 5, strict, `module: NodeNext`, builds to `dist/` |
 | HTTP server | Fastify 5 + `@fastify/cors`, bound to `127.0.0.1` |
 | Database | **`node:sqlite`** (`DatabaseSync`, built into Node — no external driver), WAL mode |
-| AI | `openai` SDK (Responses API, strict JSON Schema) or `@anthropic-ai/sdk` (`output_config` JSON schema) |
+| AI | `openai` SDK (Responses API, strict JSON Schema) |
 | Git | `node:child_process` `execFile`/`execFileSync` calling the system `git` binary |
 | Dev runner | `tsx`; tests use the built-in `node --test` on compiled output |
 
@@ -73,7 +73,7 @@ the route table and mounts the toaster; [main.tsx](frontend/src/main.tsx) wraps 
 | --- | --- |
 | `/` | `ProjectList` |
 | `/projects/new` | `AddProject` |
-| `/projects/:id/graph` | `GraphPage` |
+| `/projects/:id/graph` | `ProjectGraph` |
 | `*` | redirect to `/` |
 
 **`ProjectList`** — [ProjectList.tsx](frontend/src/pages/ProjectList.tsx)
@@ -94,23 +94,41 @@ shown inline via `FieldError`; `409` and network failures surface as an `Alert`.
 special — the project *was* created, so rather than discard it the page offers **Retry analysis**
 and **Open anyway**.
 
-**`GraphPage`** — [GraphPage.tsx](frontend/src/pages/GraphPage.tsx)
-React Flow canvas with `Background`, `Controls` and a back `Button`. It reads `:id` from the route
-but **still renders a hardcoded demo topology** (Frontend / User Service / Order Service / Database,
-three features each on an arc, inter-service edges labelled `HTTP`, `gRPC`, `AMQP`). Wiring it to
-`GET /projects/:id/nodes` is the next piece of work — see §6.
+**`ProjectGraph`** — [ProjectGraph.tsx](frontend/src/pages/ProjectGraph.tsx)
+The architecture map, driven by real backend data. It reads `:id` from the route, fetches the
+project and then `GET /projects/:id/nodes`, and covers four states: loading, a destructive `Alert`
+on failure, an `Empty` "not mapped yet" prompt when the backend returns `404 Project map not
+loaded`, and the canvas itself. Both empty states offer an **Analyze now** / **Re-analyze** button
+that calls `POST /projects/:id/load` and reports the outcome as a toast.
+
+[GraphCanvas.tsx](frontend/src/components/graph/GraphCanvas.tsx) holds the React Flow canvas —
+minimap, controls, dotted background, and the inspector panel — and takes `colorMode` from the
+theme. The page mounts it with a `key` derived from the data so a fresh analysis rebuilds the
+layout rather than keeping the previous node positions.
+
+Positions come from [graph-layout.ts](frontend/src/lib/graph-layout.ts), which is described in §4.1.
 
 ### Node components
 
-Both live in [frontend/src/components/](frontend/src/components/) and share the same structure:
-a circular node with hidden centered `Handle`s and a `NodeToolbar` that appears on selection with
-four actions — **To chat**, **Test**, **Explain**, **Audit**. Every action currently fires an
-`alert()`; these map to the "long-press actions" planned in the brief (§17).
+Both live in [frontend/src/components/graph/](frontend/src/components/graph/): a circular node
+with hidden centred `Handle`s and a `NodeToolbar` shown on selection, carrying **To chat**,
+**Test**, **Explain** and **Audit**. Those have no backend, so they raise a `sonner` toast saying
+so rather than acting.
 
-- [ServiceNode.tsx](frontend/src/components/ServiceNode.tsx) — 140 px circle, cyan `#00E5FF` border, 18 px label.
-- [FeatureNode.tsx](frontend/src/components/FeatureNode.tsx) — 80 px circle, blue `#4D90FE` border, 14 px label.
+- `ServiceNode.tsx` — 132 px circle, `bg-card` with a `ring-primary` ring.
+- `FeatureNode.tsx` — 72 px circle, `bg-muted` with a border.
 
-Both are typed `any` for props.
+Both are styled purely from theme tokens, so they follow the light/dark switch.
+
+### 4.1 Layout
+
+`toFlowGraph(graph)` turns the backend's flat node/relation list into positioned nodes and edges,
+with no layout dependency. Services are spread around a ring whose radius comes from the
+circle-packing bound `R >= claimed / sin(pi / N)`; each service's features fan on an arc pointing
+away from the graph's centre, and the orbit radius grows with feature count so a service with many
+features spreads them instead of overlapping. Features are emitted as React Flow children
+(`parentId`) of their service, so dragging a service carries its orbit. The layout is
+deterministic — no jitter — so the same graph always draws the same picture.
 
 ### shadcn components in use
 
@@ -144,7 +162,7 @@ POST /projects/:id/load
 | File | Role |
 | --- | --- |
 | [server.ts](backend/src/server.ts) | Opens SQLite, registers CORS + routes, listens on `127.0.0.1:PORT`, closes the DB on shutdown. |
-| [config.ts](backend/src/config.ts) | Env parsing/validation: `PORT`, `DATABASE_PATH`, `AI_PROVIDER` (`openai`\|`anthropic`), keys and model names. Throws on bad values at import time. |
+| [config.ts](backend/src/config.ts) | Env parsing/validation: `PORT`, `DATABASE_PATH`, `OPENAI_API_KEY`, `OPENAI_MODEL`. Throws on a bad port at import time. |
 | [cors.ts](backend/src/cors.ts) | Allows only `http://localhost:<port>` / `http://127.0.0.1:<port>` origins, `GET` + `POST`. |
 | [db/db.ts](backend/src/db/db.ts) | `openDatabase()`: creates the parent dir, enables WAL, creates `projects(id, name, path)`. |
 | [projects/project.routes.ts](backend/src/projects/project.routes.ts) | All five HTTP routes; validates that a path is a real directory inside a Git work tree (`git rev-parse --is-inside-work-tree`); owns the `CommitMonitor` instance and its analyze callback. |
@@ -152,8 +170,6 @@ POST /projects/:id/load
 | [analyzer/types.ts](backend/src/analyzer/types.ts) | `ProjectNode`, `ProjectRelation`, `AnalyzedNode` (with `evidence_paths`), and `toPublicGraph()` which strips evidence before it leaves the server. |
 | [analyzer/validate-graph.ts](backend/src/analyzer/validate-graph.ts) | Trust boundary for model output: exact-key checks, ≤100 nodes / ≤200 relations, every `evidence_paths` entry must be a path actually scanned, at least one service, features need exactly one containing service, duplicate relations dropped. Rewrites temporary IDs into **stable** `type-slug-sha256[0:8]` IDs derived from parent+node name, so IDs survive re-analysis. |
 | [ai/openai-analyzer.ts](backend/src/ai/openai-analyzer.ts) | Shared `graphSchema`, the prompt `instructions`, `buildModelInput()`, the `GraphRequester` interface, the OpenAI requester (Responses API, `store: false`), and `analyzeProject()` + `AnalysisError`. |
-| [ai/anthropic-analyzer.ts](backend/src/ai/anthropic-analyzer.ts) | Anthropic requester over the same schema/prompt; `maxRetries: 0`, optional usage callback, errors reduced to status codes. |
-| [ai/provider.ts](backend/src/ai/provider.ts) | Picks a requester from `config.aiProvider`. |
 | [git/commit-monitor.ts](backend/src/git/commit-monitor.ts) | `readGitHead()` (returns `null` for a repo with no commits) and `CommitMonitor`: per-project 1 s polling, one analysis at a time, a `dirty` flag so the newest commit is re-run after a busy analysis, `AnalysisBusyError` → HTTP 409, `stopAll()` on shutdown. |
 | [map/project-map-file.ts](backend/src/map/project-map-file.ts) | `saveProjectMap()` writes to `.ProjectMap.json.<uuid>.tmp` with `flag: 'wx'` then renames (atomic, cleans up on failure); `readProjectMap()` re-validates on read and returns `null` when the file is absent. |
 
@@ -213,8 +229,8 @@ The base URL is `VITE_API_BASE_URL`, defaulting to `http://127.0.0.1:3000`
 (see [frontend/.env.example](frontend/.env.example)). Backend CORS already allows
 `localhost`/`127.0.0.1` origins, so no Vite proxy is needed.
 
-**Still unwired:** `GraphPage` does not call `getProjectNodes()` yet, and the node toolbar actions
-(`To chat`, `Test`, `Explain`, `Audit`) still `alert()` — no backend endpoints exist for them.
+**Still unwired:** the node toolbar actions (`To chat`, `Test`, `Explain`, `Audit`) have no
+backend endpoints, so they raise a toast instead of acting.
 
 ## 7. Running it
 
@@ -222,7 +238,7 @@ The base URL is `VITE_API_BASE_URL`, defaulting to `http://127.0.0.1:3000`
 # backend — needs Node 26+, git, and an AI key
 cd backend
 npm install
-cp .env.example .env     # set AI_PROVIDER + OPENAI_API_KEY or ANTHROPIC_API_KEY
+cp .env.example .env     # set OPENAI_API_KEY
 npm run dev              # http://127.0.0.1:3000
 npm test                 # build + node --test
 npm run typecheck

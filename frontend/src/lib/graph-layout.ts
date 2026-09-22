@@ -23,6 +23,9 @@ const MAX_FEATURE_ARC = (200 * Math.PI) / 180
 const ARC_PER_FEATURE = (42 * Math.PI) / 180
 /** Clear space to leave between two neighbouring features. */
 const FEATURE_GAP = 16
+/** Nodes sit above the edge layer so their solid fill hides the lines running beneath. */
+const NODE_Z = 10
+const EDGE_Z = 0
 
 export interface GraphNodeData extends Record<string, unknown> {
   label: string
@@ -121,6 +124,9 @@ export function toFlowGraph(graph: Graph): FlowGraph {
       id: service.id,
       type: service.type,
       position: topLeft(centreX, centreY, size),
+      // Edges run centre to centre, so without this they are drawn across the node's face.
+      // Any value above the default edge z-index keeps the solid disc on top of them.
+      zIndex: NODE_Z,
       data: { label: service.name, type: service.type },
     })
 
@@ -148,36 +154,39 @@ export function toFlowGraph(graph: Graph): FlowGraph {
         // service's own box. `parentId` alone makes a service drag its orbit with it.
         parentId: service.id,
         position: topLeft(relativeX, relativeY, FEATURE_SIZE),
+        zIndex: NODE_Z + 1,
         data: { label: feature.name, type: 'feature' },
       })
     })
   })
 
-  const knownIds = new Set(nodes.map((node) => node.id))
+  const sizeById = new Map(nodes.map((node) => [node.id, node.type === 'service' ? SERVICE_SIZE : FEATURE_SIZE]))
+  const radiusOf = (id: string) => (sizeById.get(id) ?? FEATURE_SIZE) / 2
+
   const edges: Edge[] = graph.relations
-    .filter((relation) => knownIds.has(relation.parent_id) && knownIds.has(relation.child_id))
-    .map(toEdge)
+    .filter((relation) => sizeById.has(relation.parent_id) && sizeById.has(relation.child_id))
+    .map((relation) => toEdge(relation, radiusOf))
 
   return { nodes, edges }
 }
 
-function toEdge(relation: ProjectRelation): Edge {
+function toEdge(relation: ProjectRelation, radiusOf: (id: string) => number): Edge {
   const contains = relation.label === 'contains'
   return {
     id: `${relation.parent_id}--${relation.child_id}--${relation.label}`,
     source: relation.parent_id,
     target: relation.child_id,
-    type: 'straight',
-    // A "contains" line is structural, so it stays quiet; a protocol link is the
-    // interesting relationship and carries a readable label.
-    ...(contains
-      ? { style: { strokeWidth: 1 }, selectable: false }
-      : {
-          label: relation.label,
-          labelShowBg: true,
-          labelBgPadding: [8, 4] as [number, number],
-          labelBgBorderRadius: 6,
-          style: { strokeWidth: 1.5 },
-        }),
+    // Trimmed to the circles' edges; see RadialEdge for why z-index cannot do this.
+    type: 'radial',
+    zIndex: EDGE_Z,
+    selectable: !contains,
+    data: {
+      sourceRadius: radiusOf(relation.parent_id),
+      targetRadius: radiusOf(relation.child_id),
+      // A "contains" line is structural, so it stays quiet; a protocol link is the
+      // interesting relationship and carries a readable label.
+      ...(contains ? {} : { label: relation.label }),
+    },
+    style: { strokeWidth: contains ? 1 : 1.5 },
   }
 }

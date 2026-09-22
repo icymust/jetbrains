@@ -3,6 +3,7 @@ import { ArrowUpRight, FlaskConical, Lightbulb, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { useNodeMenu } from '@/lib/node-menu-context'
 
 const actions = [
   { label: 'To chat', icon: ArrowUpRight },
@@ -12,12 +13,29 @@ const actions = [
 ] as const
 
 /**
- * The per-node action menu, shown while a node is selected. These have no backend yet, so
- * they report what they would do instead of doing it.
+ * The per-node action menu, opened by right-clicking a node. Only Test does anything;
+ * the rest have no backend, so they report what they would do instead of doing it.
  */
-export function NodeActions({ visible, name }: { visible: boolean; name: string }) {
+export function NodeActions({
+  visible,
+  nodeId,
+  name,
+}: {
+  visible: boolean
+  nodeId: string
+  name: string
+}) {
+  const { close, openTests } = useNodeMenu()
+
   return (
-    <NodeToolbar isVisible={visible} position={Position.Right} offset={12}>
+    <NodeToolbar
+      isVisible={visible}
+      position={Position.Right}
+      offset={12}
+      // The toolbar is portaled onto the pane, so without these a mousedown on it starts a
+      // pan/drag gesture — which closed this menu before the click could ever land.
+      className="nopan nodrag"
+    >
       <div className="flex flex-col gap-0.5 rounded-lg border bg-popover p-1 shadow-md">
         {actions.map(({ label, icon: Icon }) => (
           <Button
@@ -27,6 +45,11 @@ export function NodeActions({ visible, name }: { visible: boolean; name: string 
             className="justify-start"
             onClick={(event) => {
               event.stopPropagation()
+              close()
+              if (label === 'Test') {
+                openTests(nodeId)
+                return
+              }
               toast(`${label} — ${name}`, { description: 'Not wired to the backend yet.' })
             }}
           >

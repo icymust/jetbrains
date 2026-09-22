@@ -2,13 +2,16 @@ import type { NodeProps } from '@xyflow/react'
 
 import { cn } from '@/lib/utils'
 import { FEATURE_SIZE, type FlowNode } from '@/lib/graph-layout'
+import { useNodeMenu } from '@/lib/node-menu-context'
 import { CentreHandles, NodeActions } from './NodeActions'
 
 /** A single piece of functionality, always owned by exactly one service. */
-export default function FeatureNode({ data, selected }: NodeProps<FlowNode>) {
+export default function FeatureNode({ id, data, selected }: NodeProps<FlowNode>) {
+  const { openNodeId } = useNodeMenu()
+
   return (
     <>
-      <NodeActions visible={Boolean(selected)} name={data.label} />
+      <NodeActions visible={openNodeId === id} nodeId={id} name={data.label} />
 
       <div
         style={{ width: FEATURE_SIZE, height: FEATURE_SIZE }}

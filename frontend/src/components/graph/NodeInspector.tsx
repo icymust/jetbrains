@@ -2,10 +2,17 @@ import { X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import type { Graph, ProjectNode } from '@/lib/api'
+import { describeNode } from '@/lib/node-description'
 
 interface Connection {
   id: string
@@ -48,12 +55,17 @@ export function NodeInspector({
   }
 
   return (
-    <Card className="w-72 shadow-lg">
+    <Card className="w-full shadow-lg">
       <CardHeader>
         <CardTitle className="pr-8 text-base leading-tight">{node.name}</CardTitle>
         <Badge variant="secondary" className="w-fit capitalize">
           {node.type}
         </Badge>
+        <CardDescription className="text-sm">{describeNode(node)}</CardDescription>
+        {/* Said plainly: this text is generic, not something the analysis produced. */}
+        <p className="text-[11px] text-muted-foreground/70">
+          Placeholder — the analysis does not return descriptions yet.
+        </p>
         <Button
           variant="ghost"
           size="icon"

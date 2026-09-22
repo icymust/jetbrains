@@ -2,13 +2,16 @@ import type { NodeProps } from '@xyflow/react'
 
 import { cn } from '@/lib/utils'
 import { SERVICE_SIZE, type FlowNode } from '@/lib/graph-layout'
+import { useNodeMenu } from '@/lib/node-menu-context'
 import { CentreHandles, NodeActions } from './NodeActions'
 
 /** A major architecture component: the large anchor other nodes orbit. */
-export default function ServiceNode({ data, selected }: NodeProps<FlowNode>) {
+export default function ServiceNode({ id, data, selected }: NodeProps<FlowNode>) {
+  const { openNodeId } = useNodeMenu()
+
   return (
     <>
-      <NodeActions visible={Boolean(selected)} name={data.label} />
+      <NodeActions visible={openNodeId === id} nodeId={id} name={data.label} />
 
       <div
         style={{ width: SERVICE_SIZE, height: SERVICE_SIZE }}

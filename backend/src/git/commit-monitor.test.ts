@@ -16,6 +16,7 @@ test('unchanged HEAD does nothing; changed HEAD analyzes and failure keeps the l
   let head: string | null = 'commit-a';
   let calls = 0;
   let fail = false;
+  let now = 0;
   const monitor = new CommitMonitor(async (_project, commit) => {
     calls++;
     if (fail) throw new Error('Mock analysis failure');
@@ -24,7 +25,7 @@ test('unchanged HEAD does nothing; changed HEAD analyzes and failure keeps the l
       generated_at: new Date().toISOString(), ...graph,
     });
     return graph;
-  }, log, async () => head);
+  }, log, async () => head, 1000, () => now);
   try {
     await monitor.load(project);
     assert.equal(monitor.isMonitoring(project.id), true);
@@ -43,10 +44,19 @@ test('unchanged HEAD does nothing; changed HEAD analyzes and failure keeps the l
     await monitor.checkNow(project.id);
     assert.equal(calls, 3);
     assert.equal(readFileSync(file, 'utf8'), previous);
-    head = 'commit-d';
     fail = false;
     await monitor.checkNow(project.id);
+    assert.equal(calls, 3);
+    now = 29_999;
+    await monitor.checkNow(project.id);
+    assert.equal(calls, 3);
+    now = 30_000;
+    await monitor.checkNow(project.id);
     assert.equal(calls, 4);
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).commit, 'commit-c');
+    head = 'commit-d';
+    await monitor.checkNow(project.id);
+    assert.equal(calls, 5);
     assert.equal(JSON.parse(readFileSync(file, 'utf8')).commit, 'commit-d');
   } finally {
     monitor.stopAll();

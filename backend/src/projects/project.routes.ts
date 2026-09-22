@@ -66,6 +66,19 @@ export function registerProjectRoutes(
     app.log.info({ projectId: project.id, commit }, 'Project analysis completed');
     return graph;
   }, app.log);
+  app.addHook('onReady', async () => {
+    const projects = database.prepare('SELECT id, name, path FROM projects').all() as unknown as Project[];
+    for (const project of projects) {
+      try {
+        const map = await readProjectMap(project.path);
+        if (map?.project_id === project.id) {
+          monitor.restore(project, map.commit ?? null);
+        }
+      } catch (error) {
+        app.log.error({ projectId: project.id, err: error }, 'Saved project map could not be restored');
+      }
+    }
+  });
   app.addHook('onClose', async () => monitor.stopAll());
 
   app.post<{ Body: { name: string; path: string } }>(

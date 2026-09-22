@@ -6,7 +6,7 @@ This local Node.js 26+ / TypeScript / Fastify backend runs on the same computer 
 
 ## Frontend User Flow
 
-Home → `GET /projects` → Add Project form (name and local repository root path) → `POST /projects` → use the returned `id` in `POST /projects/:id/load` → open graph → `GET /projects/:id/nodes`. `POST /projects` only saves project metadata; it does **not** analyze. For an existing project, open the graph with `GET /projects/:id/nodes`. Call `/load` when an initial analysis is needed (or explicitly requested), not on every graph page open.
+Home → `GET /projects` → Add Project form (name and local repository root path, the path either typed or chosen through the folder picker backed by `GET /directories`) → `POST /projects` → use the returned `id` in `POST /projects/:id/load` → open graph → `GET /projects/:id/nodes`. `POST /projects` only saves project metadata; it does **not** analyze. For an existing project, open the graph with `GET /projects/:id/nodes`. Call `/load` when an initial analysis is needed (or explicitly requested), not on every graph page open.
 
 ## API Contract
 
@@ -19,6 +19,7 @@ Base URL by default: `http://127.0.0.1:3000`. JSON request bodies use `Content-T
 | `GET /projects/:id` | Read one stored project; no body. | `200 {"id":"p1","name":"Demo","path":"/canonical/absolute/repo"}`. | `404 {"error":"Project not found"}`. |
 | `POST /projects/:id/load` | Scan, analyze, validate, save `ProjectMap.json`, and begin in-process commit monitoring; no body. | `200 {"nodes":[{"id":"service-backend-...","name":"Backend","type":"service"}],"relations":[]}`. | `404 {"error":"Project not found"}`; `409 {"error":"Project analysis already running"}`; `500 {"error":"Project analysis failed"}` (for example, unavailable AI provider or invalid analysis). A failed analysis does not replace a valid existing map. |
 | `GET /projects/:id/nodes` | Read the current `ProjectMap.json`; no body and no AI call. | `200 {"nodes":[{"id":"service-backend-...","name":"Backend","type":"service"}],"relations":[]}`. | `404 {"error":"Project not found"}` or `{"error":"Project map not loaded"}`; `409 {"error":"Project map belongs to another project"}`; `500 {"error":"Project map could not be read"}`. |
+| `GET /directories` | Browse folders for the repository picker. Optional `?path=<absolute path>`; omitted means the browsable root. Returns directory **names only**, never file contents, and only below the root (the backend's home directory). | `200 {"root":"/home/you","path":"/home/you/projects","parent":"/home/you","isGitRepo":false,"entries":[{"name":"my-app","path":"/home/you/projects/my-app","isGitRepo":true}],"truncated":false}`. `parent` is `null` at the root. | `400 {"error":"Path is outside the browsable root"}`; `404 {"error":"Directory not found"}` (missing, unreadable, or not a directory); `403 {"error":"Directory could not be read"}`. |
 
 ## Graph Data
 
@@ -32,6 +33,8 @@ type ProjectRelation = { parent_id: string; child_id: string; label: string };
 Render service nodes as major architecture components and feature nodes as smaller pieces of functionality. Draw each relation from `parent_id` to `child_id` and display its returned `label`. Labels can be `contains`, `HTTP`, `gRPC`, or other short text; there is no fixed label enum. Internal `evidence_paths` are not returned to the frontend. `ProjectMap.json` additionally stores `project_id`, `generated_at`, and optionally `commit`; these fields are not part of `/load` or `/nodes` responses.
 
 ## Important MVP Constraints
+
+- `GET /directories` only lists directory names, and only at or below the backend's home directory; symlinks are resolved before that check, so a link inside home cannot step out of it. The server binds to loopback and CORS restricts browser origins, but CORS does not constrain a non-browser local client, so the root restriction is the real boundary. `POST /projects` still accepts any absolute path, exactly as before.
 
 - Repositories are local Git working trees. The browser sends a path string that must refer to a repository accessible by the backend process. It does not upload files. GitHub URLs, cloning, and multi-repo projects are outside this MVP.
 - AI analysis runs on `/load` and after detected Git HEAD changes. Uncommitted edits do not trigger it. `GET /nodes` only reads the last saved map.

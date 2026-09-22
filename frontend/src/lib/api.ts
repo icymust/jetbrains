@@ -116,3 +116,26 @@ export async function loadProject(id: string): Promise<Graph> {
 export async function getProjectNodes(id: string): Promise<Graph> {
   return request<Graph>(`/projects/${encodeURIComponent(id)}/nodes`)
 }
+
+export interface DirectoryEntry {
+  name: string
+  path: string
+  isGitRepo: boolean
+}
+
+export interface DirectoryListing {
+  /** The directory browsing is confined to; nothing above it can be listed. */
+  root: string
+  path: string
+  /** null at the root, where there is nowhere left to go up to. */
+  parent: string | null
+  isGitRepo: boolean
+  entries: DirectoryEntry[]
+  truncated: boolean
+}
+
+/** Lists the folders inside `path`, or the browsable root when it is omitted. */
+export async function browseDirectories(path?: string): Promise<DirectoryListing> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : ''
+  return request<DirectoryListing>(`/directories${query}`)
+}

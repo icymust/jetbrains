@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, FolderOpen, TriangleAlert } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { FolderPicker } from '@/components/folder-picker'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { ApiError, createProject, type Project } from '@/lib/api'
 
@@ -39,6 +40,7 @@ export default function AddProject() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const busy = phase !== 'idle'
 
@@ -122,17 +124,29 @@ export default function AddProject() {
 
               <Field data-invalid={Boolean(fieldErrors.path)}>
                 <FieldLabel htmlFor="project-path">Repository path</FieldLabel>
-                <Input
-                  id="project-path"
-                  value={path}
-                  onChange={(event) => setPath(event.target.value)}
-                  placeholder="/home/you/projects/my-app"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="font-mono"
-                  disabled={busy}
-                  aria-invalid={Boolean(fieldErrors.path)}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="project-path"
+                    value={path}
+                    onChange={(event) => setPath(event.target.value)}
+                    placeholder="/home/you/projects/my-app"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="font-mono"
+                    disabled={busy}
+                    aria-invalid={Boolean(fieldErrors.path)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={busy}
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <FolderOpen />
+                    Browse
+                  </Button>
+                </div>
                 <FieldDescription>
                   An absolute path on this machine. It must be inside a Git working tree —
                   the backend reads it directly, nothing is uploaded.
@@ -160,6 +174,16 @@ export default function AddProject() {
           </CardFooter>
         </form>
       </Card>
+
+      <FolderPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        initialPath={path.trim() || undefined}
+        onSelect={(selected) => {
+          setPath(selected)
+          setFieldErrors((current) => ({ ...current, path: undefined }))
+        }}
+      />
     </main>
   )
 }

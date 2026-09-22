@@ -73,7 +73,9 @@ the route table and mounts the toaster; [main.tsx](frontend/src/main.tsx) wraps 
 | --- | --- |
 | `/` | `ProjectList` |
 | `/projects/new` | `AddProject` |
+| `/projects/:id/analyzing` | `AnalyzingProject` |
 | `/projects/:id/graph` | `ProjectGraph` |
+| `/analyzing-preview` | `AnalyzingProject` in preview mode — not linked from anywhere |
 | `*` | redirect to `/` |
 
 **`ProjectList`** — [ProjectList.tsx](frontend/src/pages/ProjectList.tsx)
@@ -84,15 +86,22 @@ chevron — each rendered as a router `Link` to that project's graph. The header
 response.
 
 **`AddProject`** — [AddProject.tsx](frontend/src/pages/AddProject.tsx)
-A `Card` with two `Field`s (project name, repository path). Submitting runs the real two-step flow,
-awaiting each call: `POST /projects` ("Creating project…"), then `POST /projects/:id/load`
-("Analyzing repository…", a real AI call that can be slow), then a success toast and a redirect to
-the graph.
+A `Card` with two `Field`s (project name, repository path). The path can be typed or chosen with the **Browse** button, which opens [folder-picker.tsx](frontend/src/components/folder-picker.tsx) — a dialog that walks the real filesystem through `GET /directories`, badges Git repositories, and only enables Select on a folder that is one. A browser file picker cannot serve here: `webkitdirectory` and `showDirectoryPicker()` both withhold the absolute path the backend needs. Submitting calls `POST /projects` and then hands off to
+the analyzing page; the form itself no longer runs the analysis. A `400` is attributed to the field
+it is about and shown inline via `FieldError`; anything else surfaces as an `Alert`.
 
-Errors are mapped from the documented responses: a `400` is attributed to the field it is about and
-shown inline via `FieldError`; `409` and network failures surface as an `Alert`. The `500` case is
-special — the project *was* created, so rather than discard it the page offers **Retry analysis**
-and **Open anyway**.
+**`AnalyzingProject`** — [AnalyzingProject.tsx](frontend/src/pages/AnalyzingProject.tsx)
+The only caller of `POST /projects/:id/load`, reached from the form and from the graph page's
+**Analyze now** / **Re-analyze**. Shows a spinner, a rotating status message
+([analyzing-status.tsx](frontend/src/components/analyzing-status.tsx)) and an elapsed timer, then
+navigates to the graph. The messages are atmosphere, not progress — `/load` reports nothing until
+it finishes — which is why a real timer sits beneath them.
+
+Two behaviours worth knowing: the request is held in a ref so React Strict Mode's double-invoked
+effect cannot start two analyses, and a `409` is treated as "someone else is analyzing this", which
+polls `GET /:id/nodes` until a map appears. On failure the page stays put and offers **Retry**,
+**Open project anyway** and **Back to projects** — the project already exists, so returning to the
+form would invite a duplicate.
 
 **`ProjectGraph`** — [ProjectGraph.tsx](frontend/src/pages/ProjectGraph.tsx)
 The architecture map, driven by real backend data. It reads `:id` from the route, fetches the
@@ -166,6 +175,7 @@ POST /projects/:id/load
 | [cors.ts](backend/src/cors.ts) | Allows only `http://localhost:<port>` / `http://127.0.0.1:<port>` origins, `GET` + `POST`. |
 | [db/db.ts](backend/src/db/db.ts) | `openDatabase()`: creates the parent dir, enables WAL, creates `projects(id, name, path)`. |
 | [projects/project.routes.ts](backend/src/projects/project.routes.ts) | All five HTTP routes; validates that a path is a real directory inside a Git work tree (`git rev-parse --is-inside-work-tree`); owns the `CommitMonitor` instance and its analyze callback. |
+| [fs/browse.routes.ts](backend/src/fs/browse.routes.ts) | `GET /directories` for the folder picker. Lists directory names only, confined to the backend's home directory — the root is `realpath`'d once and every request is `realpath`'d before the containment check, so symlinks cannot step outside. Skips symlinks, dot-directories and `node_modules`; marks a child as a repo by `stat`ing `<child>/.git`, which is a *file* in worktrees and submodules. Caps at 500 entries. |
 | [analyzer/scanner.ts](backend/src/analyzer/scanner.ts) | Bounded repo walk. Skips `.git`, `node_modules`, `dist`, lockfiles, binaries, `.env*`, keys, symlinks. Limits: 32 KB/file, 128 KB total, 200 files, 5000 entries, depth 25. Handles UTF-8 truncated mid-character. |
 | [analyzer/types.ts](backend/src/analyzer/types.ts) | `ProjectNode`, `ProjectRelation`, `AnalyzedNode` (with `evidence_paths`), and `toPublicGraph()` which strips evidence before it leaves the server. |
 | [analyzer/validate-graph.ts](backend/src/analyzer/validate-graph.ts) | Trust boundary for model output: exact-key checks, ≤100 nodes / ≤200 relations, every `evidence_paths` entry must be a path actually scanned, at least one service, features need exactly one containing service, duplicate relations dropped. Rewrites temporary IDs into **stable** `type-slug-sha256[0:8]` IDs derived from parent+node name, so IDs survive re-analysis. |
@@ -189,6 +199,7 @@ Base URL `http://127.0.0.1:3000`.
 | `GET` | `/projects/:id` | One project, or `404`. |
 | `POST` | `/projects/:id/load` | Scan → analyze → validate → write `ProjectMap.json` → start monitoring. Returns `{nodes, relations}`. `409` if already running, `500` on analysis failure (the previous valid map is kept). |
 | `GET` | `/projects/:id/nodes` | Reads the saved map. No AI call. `404` if not loaded, `409` if the file belongs to another project. |
+| `GET` | `/directories` | Folders under the home directory, for the repository picker. Optional `?path=`. Names only, never file contents. `400` outside the root, `404` missing. |
 
 Public graph shape:
 

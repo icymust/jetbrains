@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { config } from './config.js';
 import { registerLocalCors } from './cors.js';
 import { openDatabase } from './db/db.js';
+import { registerBrowseRoutes } from './fs/browse.routes.js';
 import { registerProjectRoutes } from './projects/project.routes.js';
 
 const database = openDatabase(config.databasePath);
@@ -9,6 +10,7 @@ const app = Fastify({ logger: true });
 
 await registerLocalCors(app);
 registerProjectRoutes(app, database);
+registerBrowseRoutes(app);
 
 app.addHook('onClose', async () => {
   database.close();

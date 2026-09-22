@@ -21,8 +21,11 @@ function formatElapsed(ms: number): string {
 }
 
 /**
- * Tests for one node. Every number in here is invented — see mock-tests.ts — which is why
- * the header carries a `mock` badge rather than letting a coverage figure pass for real.
+ * Tests for one node.
+ *
+ * Every number shown here is invented — counts, coverage and run duration all come from
+ * mock-tests.ts, and nothing is measured. Nothing on screen says so, so keep that in mind
+ * before wiring this to anything that treats the coverage figure as real.
  */
 export function TestsPanel({ node, onClose }: { node: ProjectNode; onClose: () => void }) {
   const tests = useMemo(() => mockTestsFor(node), [node])
@@ -33,6 +36,18 @@ export function TestsPanel({ node, onClose }: { node: ProjectNode; onClose: () =
   // transitioned from `auto`, so the content is measured and the wrapper animates to it.
   const contentRef = useRef<HTMLDivElement>(null)
   const [contentHeight, setContentHeight] = useState<number>()
+
+  useEffect(() => {
+    // pointerdown rather than click: the click that opened this panel is still propagating
+    // when the effect runs, so a click listener would see it and close immediately.
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      if (target?.closest('[data-graph-sidebar]')) return
+      onClose()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [onClose])
 
   useEffect(() => {
     const element = contentRef.current

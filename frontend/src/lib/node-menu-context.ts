@@ -1,4 +1,5 @@
 import { createContext, use } from 'react'
+import type { ChatAction } from './chat-prompt'
 
 export interface NodeMenuState {
   /** The node whose action menu is open, or null when none is. */
@@ -6,12 +7,15 @@ export interface NodeMenuState {
   close: () => void
   /** Opens the Tests window for a node; the menu closes as it does. */
   openTests: (nodeId: string) => void
+  /** Opens the chat modal for a node, seeded with the action's question. */
+  openChat: (nodeId: string, action: ChatAction) => void
 }
 
 export const NodeMenuContext = createContext<NodeMenuState>({
   openNodeId: null,
   close: () => {},
   openTests: () => {},
+  openChat: () => {},
 })
 
 export function useNodeMenu(): NodeMenuState {

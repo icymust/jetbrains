@@ -13,8 +13,9 @@ const actions = [
 ] as const
 
 /**
- * The per-node action menu, opened by right-clicking a node. Only Test does anything;
- * the rest have no backend, so they report what they would do instead of doing it.
+ * The per-node action menu, opened by right-clicking a node. Test and the two chat
+ * actions open their own windows; Audit has no backend, so it reports what it would do
+ * instead of doing it.
  */
 export function NodeActions({
   visible,
@@ -25,7 +26,7 @@ export function NodeActions({
   nodeId: string
   name: string
 }) {
-  const { close, openTests } = useNodeMenu()
+  const { close, openTests, openChat } = useNodeMenu()
 
   return (
     <NodeToolbar
@@ -48,6 +49,10 @@ export function NodeActions({
               close()
               if (label === 'Test') {
                 openTests(nodeId)
+                return
+              }
+              if (label === 'To chat' || label === 'Explain') {
+                openChat(nodeId, label)
                 return
               }
               toast(`${label} — ${name}`, { description: 'Not wired to the backend yet.' })

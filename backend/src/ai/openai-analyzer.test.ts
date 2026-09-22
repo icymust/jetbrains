@@ -41,6 +41,19 @@ test('analyzer keeps evidence internally, removes duplicate relations, and produ
   assert.equal(JSON.parse(buildModelInput(scan)).files[1].path, 'src/auth/login.ts');
 });
 
+test('evidence must name an included file, not a directory or missing path', async () => {
+  const valid = await analyzeProject(scan, { request: async () => JSON.stringify(modelGraph) });
+  assert.deepEqual(valid.nodes[1]?.evidence_paths, ['src/auth/login.ts']);
+  for (const path of ['src/auth', 'src/auth/missing.ts']) {
+    const graph = structuredClone(modelGraph);
+    graph.nodes[1]!.evidence_paths = [path];
+    await assert.rejects(
+      analyzeProject(scan, { request: async () => JSON.stringify(graph) }),
+      /Invalid node or unsupported evidence path/,
+    );
+  }
+});
+
 test('one service may contain multiple features', async () => {
   const graph = structuredClone(modelGraph);
   graph.nodes.push({ id: 'users', name: 'User Management', type: 'feature', evidence_paths: ['src/auth/login.ts'] });
@@ -66,6 +79,7 @@ test('prompt favors domain features and direct evidence-based service connection
   assert.match(instructions, /direct directed service-to-service relation/);
   assert.match(instructions, /observed protocol such as HTTP or gRPC/);
   assert.match(instructions, /relation labeled "contains"/);
+  assert.match(instructions, /exact path values in the files array, never from directories or inferred paths/);
 });
 
 test('strict output schema aligns expressible graph and relation constraints', () => {
@@ -136,7 +150,6 @@ test('mocked domain graph keeps direct service relations, evidence, and stable I
 
 test('analyzer rejects unsupported evidence, invalid relations, duplicate nodes, and empty graphs', async () => {
   const invalidGraphs = [
-    { ...modelGraph, nodes: [{ ...modelGraph.nodes[0], evidence_paths: ['invented.ts'] }, modelGraph.nodes[1]] },
     { ...modelGraph, relations: [{ parent_id: 'svc', child_id: 'auth', label: '' }] },
     { ...modelGraph, relations: [{ parent_id: 'svc', child_id: 'auth', label: 'x'.repeat(41) }] },
     { ...modelGraph, relations: [{ parent_id: 'missing', child_id: 'auth', label: 'uses' }] },
@@ -236,4 +249,10 @@ test('OpenAI requester uses Responses API strict JSON Schema', async () => {
   assert.equal((request?.text as { format: { strict: boolean } }).format.strict, true);
   assert.equal((request?.text as { format: { type: string } }).format.type, 'json_schema');
   assert.equal(request?.input, buildModelInput(scan));
+  const schema = (request?.text as { format: { schema: {
+    properties: { nodes: { items: { properties: { evidence_paths: { items: { enum: string[] } } } } } } },
+  } }).format.schema;
+  assert.deepEqual(schema.properties.nodes.items.properties.evidence_paths.items.enum,
+    scan.files.map((file) => file.path));
+  assert.equal(schema.properties.nodes.items.properties.evidence_paths.items.enum.includes('src/auth'), false);
 });

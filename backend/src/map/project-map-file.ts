@@ -9,6 +9,7 @@ export interface ProjectMap {
   generated_at: string;
   nodes: ProjectNode[];
   relations: ProjectRelation[];
+  evidence_paths_by_node?: Record<string, string[]>;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -19,6 +20,7 @@ function validMap(value: unknown): value is ProjectMap {
   if (!isObject(value) || typeof value.project_id !== 'string' ||
       typeof value.generated_at !== 'string' ||
       (value.commit !== undefined && typeof value.commit !== 'string') ||
+      (value.evidence_paths_by_node !== undefined && !isObject(value.evidence_paths_by_node)) ||
       !Array.isArray(value.nodes) || !Array.isArray(value.relations)) return false;
 
   const ids = new Set<string>();
@@ -29,6 +31,13 @@ function validMap(value: unknown): value is ProjectMap {
     ids.add(node.id);
   }
   if (ids.size === 0) return false;
+
+  if (value.evidence_paths_by_node !== undefined) {
+    for (const [id, paths] of Object.entries(value.evidence_paths_by_node)) {
+      if (!ids.has(id) || !Array.isArray(paths) || paths.length === 0 || paths.length > 20 ||
+          !paths.every((path) => typeof path === 'string' && path.length > 0)) return false;
+    }
+  }
 
   return value.relations.every((relation) => isObject(relation) &&
     Object.keys(relation).sort().join(',') === 'child_id,label,parent_id' &&

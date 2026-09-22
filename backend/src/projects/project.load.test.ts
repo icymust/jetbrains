@@ -70,7 +70,11 @@ test('load saves a labeled map, nodes reads it, and failed reload preserves it',
     assert.equal(typeof map.generated_at, 'string');
     assert.deepEqual(map.nodes, graph.nodes);
     assert.deepEqual(map.relations, graph.relations);
-    assert.equal(JSON.stringify(map).includes('evidence_paths'), false);
+    assert.deepEqual(map.evidence_paths_by_node, {
+      [graph.nodes[0].id]: ['package.json'],
+      [graph.nodes[1].id]: ['server.ts'],
+    });
+    assert.equal(JSON.stringify(graph).includes('evidence_paths'), false);
     assert.equal((await scanProject(repository)).files.some((file) => file.path === 'ProjectMap.json'), false);
 
     writeFileSync(join(repository, 'server.ts'), 'export function login() { return true; }');

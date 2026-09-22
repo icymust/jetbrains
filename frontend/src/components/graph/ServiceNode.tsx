@@ -1,0 +1,29 @@
+import type { NodeProps } from '@xyflow/react'
+
+import { cn } from '@/lib/utils'
+import { SERVICE_SIZE, type FlowNode } from '@/lib/graph-layout'
+import { CentreHandles, NodeActions } from './NodeActions'
+
+/** A major architecture component: the large anchor other nodes orbit. */
+export default function ServiceNode({ data, selected }: NodeProps<FlowNode>) {
+  return (
+    <>
+      <NodeActions visible={Boolean(selected)} name={data.label} />
+
+      <div
+        style={{ width: SERVICE_SIZE, height: SERVICE_SIZE }}
+        className={cn(
+          'flex items-center justify-center rounded-full border bg-card px-4 text-center',
+          'ring-2 ring-primary/40 transition-[box-shadow,border-color] duration-150',
+          'hover:ring-primary/70',
+          selected && 'border-primary ring-4 ring-primary',
+        )}
+      >
+        <CentreHandles />
+        <span className="pointer-events-none text-sm leading-tight font-semibold text-card-foreground">
+          {data.label}
+        </span>
+      </div>
+    </>
+  )
+}

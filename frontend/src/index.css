@@ -128,3 +128,37 @@
     @apply font-sans;
     }
 }
+/*
+ * React Flow resolves every colour as var(--xy-X, var(--xy-X-default)), so setting the
+ * unsuffixed variable wins over its own theme. Map them onto shadcn tokens once here and
+ * the canvas follows the app's theme instead of carrying hard-coded colours.
+ */
+.graph-canvas {
+  --xy-background-pattern-color: var(--border);
+  --xy-edge-stroke: var(--border);
+  --xy-edge-stroke-selected: var(--primary);
+  --xy-edge-label-background-color: var(--card);
+  --xy-edge-label-color: var(--muted-foreground);
+  --xy-connectionline-stroke: var(--primary);
+  --xy-handle-background-color: var(--primary);
+  --xy-handle-border-color: var(--background);
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--accent);
+  --xy-controls-button-color: var(--card-foreground);
+  --xy-controls-button-color-hover: var(--accent-foreground);
+  --xy-controls-button-border-color: var(--border);
+  --xy-controls-box-shadow: var(--shadow-md);
+  --xy-minimap-background-color: var(--card);
+  --xy-minimap-mask-background-color: color-mix(in oklch, var(--background) 70%, transparent);
+  --xy-attribution-background-color: transparent;
+}
+
+/* The edge label is an SVG <text>, so it takes fill rather than color. */
+.graph-canvas .react-flow__edge-textbg {
+  fill: var(--card);
+}
+.graph-canvas .react-flow__edge-text {
+  fill: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+}

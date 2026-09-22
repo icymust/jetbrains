@@ -1,4 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+import { Button } from '@/components/ui/button';
 import {
   ReactFlow,
   Background,
@@ -80,7 +83,7 @@ const generateInitialData = () => {
         id: featureId, 
         type: 'feature',
         position: { x: relativeX, y: relativeY },
-        parentNode: service.id, // Binds feature to parent for drag translation
+        parentId: service.id, // Binds feature to parent for drag translation
         data: { label: featName }
       });
 
@@ -115,19 +118,17 @@ const generateInitialData = () => {
 
 const { initialNodes, initialEdges } = generateInitialData();
 
-export default function GraphPage({ setView }: { setView: (view: string) => void }) {
+export default function GraphPage() {
   const [nodes, , onNodesChange] = useNodesState(initialNodes);
   const [edges, , onEdgesChange] = useEdgesState(initialEdges);
 
   return (
-    <div className="w-full h-full flex flex-col relative">
+    <div className="relative flex h-dvh w-full flex-col">
       <div className="absolute top-4 left-4 z-50">
-        <button 
-          onClick={() => setView('projectList')}
-          className="flex items-center gap-2 px-4 py-2 bg-[#1E1E1E] border border-[#333] hover:border-[#00E5FF] rounded-md shadow-lg transition-colors outline-none"
-        >
-          <ArrowLeft size={16} /> Back to Projects
-        </button>
+        <Button variant="secondary" size="sm" nativeButton={false} render={<Link to="/" />}>
+          <ArrowLeft />
+          Back to projects
+        </Button>
       </div>
 
       <div className="flex-grow">

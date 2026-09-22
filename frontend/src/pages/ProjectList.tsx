@@ -1,43 +1,167 @@
-import { ChevronRight, Plus } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronRight, FolderGit2, Plus, RotateCw, TriangleAlert } from 'lucide-react'
 
-export default function ProjectList({ setView }: { setView: (view: string) => void }) {
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from '@/components/ui/item'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ApiError, listProjects, type Project } from '@/lib/api'
+
+type State =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; projects: Project[] }
+
+export default function ProjectList() {
+  const [state, setState] = useState<State>({ status: 'loading' })
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    listProjects().then(
+      (projects) => {
+        if (!cancelled) setState({ status: 'ready', projects })
+      },
+      (error: unknown) => {
+        if (cancelled) return
+        setState({
+          status: 'error',
+          message:
+            error instanceof ApiError ? error.message : 'Could not load your projects.',
+        })
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [attempt])
+
+  const retry = useCallback(() => {
+    setState({ status: 'loading' })
+    setAttempt((value) => value + 1)
+  }, [])
+
   return (
-    <div className="w-full min-h-screen bg-[#0a0a0a] text-white font-sans p-8">
-      <div className="w-full flex flex-col mt-12">
-        
-        {/* Increased width to 4/5 for bigger overall layout */}
-        <div className="w-4/5 mx-auto">
-          <h1 className="text-4xl font-bold text-white mb-2">CodeOrbit Projects.</h1>
-          <p className="text-lg text-zinc-400 mb-10">1 active project</p>
+    <main className="mx-auto w-full max-w-3xl px-6 py-12">
+      <header className="mb-8 flex items-end justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Projects</h1>
+          <p className="text-sm text-muted-foreground">{describe(state)}</p>
         </div>
-        
-        <div className="w-4/5 mx-auto flex flex-col items-center gap-8">
-          
-          <button 
-            onClick={() => setView('graph')}
-            // Restored the hover:border-[#00E5FF] color without the glowing shadow. Increased padding.
-            className="w-full py-8 px-10 rounded-full border-2 border-zinc-700 bg-transparent flex items-center justify-between hover:border-[#00E5FF] hover:bg-zinc-900 transition-all cursor-pointer group outline-none"
-          >
-            <div className="flex flex-col items-start gap-2">
-              <span className="text-white text-4xl font-bold">Project 1</span>
-              <span className="text-2xl text-zinc-400 font-mono">/usr/bin</span>
-            </div>
-            {/* Restored chevron hover color */}
-            <ChevronRight size={48} className="text-zinc-400 group-hover:text-[#00E5FF] transition-colors" />
-          </button>
 
-          <button 
-            onClick={() => setView('addProject')}
-            // Restored the static border-[#00E5FF] color for the Add Project button. Increased padding.
-            className="w-full py-8 px-10 rounded-full border-2 border-[#00E5FF] bg-transparent flex items-center justify-center gap-4 hover:bg-[#00E5FF]/10 transition-all cursor-pointer outline-none"
-          >
-            <Plus size={48} className="text-[#00E5FF]" /> 
-            <span className="text-[#00E5FF] text-4xl font-bold">Add Project</span>
-          </button>
+        {state.status === 'ready' && state.projects.length > 0 && (
+          <Button nativeButton={false} render={<Link to="/projects/new" />}>
+            <Plus />
+            Add project
+          </Button>
+        )}
+      </header>
 
-        </div>
-        
-      </div>
-    </div>
-  );
+      {state.status === 'loading' && <ProjectSkeletons />}
+
+      {state.status === 'error' && (
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>Could not load projects</AlertTitle>
+          <AlertDescription>
+            <p>{state.message}</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={retry}>
+              <RotateCw />
+              Try again
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {state.status === 'ready' &&
+        (state.projects.length === 0 ? (
+          <Empty className="rounded-lg border border-dashed">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FolderGit2 />
+              </EmptyMedia>
+              <EmptyTitle>No projects yet</EmptyTitle>
+              <EmptyDescription>
+                Point CodeOrbit at a local Git repository and it will map the services and
+                features it finds.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button nativeButton={false} render={<Link to="/projects/new" />}>
+                <Plus />
+                Add your first project
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ItemGroup className="gap-2">
+            {state.projects.map((project) => (
+              <Item
+                key={project.id}
+                variant="outline"
+                render={<Link to={`/projects/${project.id}/graph`} />}
+              >
+                <ItemMedia variant="icon">
+                  <FolderGit2 />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>{project.name}</ItemTitle>
+                  <ItemDescription className="font-mono text-xs">
+                    {project.path}
+                  </ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <ChevronRight className="size-4 text-muted-foreground" />
+                </ItemActions>
+              </Item>
+            ))}
+          </ItemGroup>
+        ))}
+    </main>
+  )
+}
+
+function describe(state: State): string {
+  if (state.status === 'loading') return 'Loading your projects…'
+  if (state.status === 'error') return 'Something went wrong.'
+  const count = state.projects.length
+  if (count === 0) return 'Nothing mapped yet.'
+  return `${count} ${count === 1 ? 'project' : 'projects'}`
+}
+
+function ProjectSkeletons() {
+  return (
+    <ItemGroup className="gap-2">
+      {[0, 1, 2].map((index) => (
+        <Item key={index} variant="outline">
+          <ItemMedia variant="icon">
+            <Skeleton className="size-4 rounded-sm" />
+          </ItemMedia>
+          <ItemContent className="gap-2">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-64" />
+          </ItemContent>
+        </Item>
+      ))}
+    </ItemGroup>
+  )
 }

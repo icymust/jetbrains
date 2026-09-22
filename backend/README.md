@@ -1,6 +1,6 @@
 # Backend MVP
 
-Requires Node.js 26+ and Git. Run `npm install`, then run `npm run dev`. Set `AI_PROVIDER=openai` with `OPENAI_API_KEY`, or `AI_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`, in a local `.env` file. `OPENAI_MODEL` and `ANTHROPIC_MODEL` are optional; see `.env.example`.
+Requires Node.js 26+ and Git. Run `npm install`, then run `npm run dev`. Set `OPENAI_API_KEY` in a local `.env` file. `OPENAI_MODEL` is optional; see `.env.example`.
 
 Create a project with `POST /projects` using a local Git working-tree path. Call `POST /projects/:id/load` to analyze it and write `ProjectMap.json` in that folder. `GET /projects/:id/nodes` returns the current nodes and labeled relations.
 

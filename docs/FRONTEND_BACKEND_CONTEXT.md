@@ -39,7 +39,7 @@ Render service nodes as major architecture components and feature nodes as small
 
 ## Local Development
 
-From the repository root, run `cd backend`, `npm install`, then `npm run dev`. The server binds to `127.0.0.1` on port `3000` by default (`PORT` overrides the port). SQLite defaults to `backend/.data/projects.sqlite` when started from `backend/` (`DATABASE_PATH` overrides it). Git must be installed. For `/load`, set `AI_PROVIDER=openai` and `OPENAI_API_KEY`, or `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`, in `backend/.env`; the corresponding `OPENAI_MODEL` or `ANTHROPIC_MODEL` is optional. Never put provider keys in frontend code.
+From the repository root, run `cd backend`, `npm install`, then `npm run dev`. The server binds to `127.0.0.1` on port `3000` by default (`PORT` overrides the port). SQLite defaults to `backend/.data/projects.sqlite` when started from `backend/` (`DATABASE_PATH` overrides it). Git must be installed. For `/load`, set `OPENAI_API_KEY` in `backend/.env`; `OPENAI_MODEL` is optional (default `gpt-5.6-terra`). Never put the API key in frontend code.
 
 The backend allows browser CORS requests from `http://localhost:<port>` and `http://127.0.0.1:<port>` for its GET and POST API calls, including POST preflight requests. Other origins receive no CORS permission. The backend does not configure a frontend proxy.
 

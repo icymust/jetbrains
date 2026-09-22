@@ -18,7 +18,7 @@ test('load saves a labeled map, nodes reads it, and failed reload preserves it',
   writeFileSync(join(repository, 'package.json'), '{"name":"demo"}');
   writeFileSync(join(repository, 'server.ts'), 'export function login() {}');
 
-  let failure: 'none' | 'api' | 'validation' = 'none';
+  let failure: 'none' | 'api' | 'validation' | 'relation' = 'none';
   let requestCount = 0;
   let waitBeforeReply: Promise<void> | undefined;
   let signalEntered: (() => void) | undefined;
@@ -31,6 +31,10 @@ test('load saves a labeled map, nodes reads it, and failed reload preserves it',
       assert.equal(files.some((file) => file.path === 'ProjectMap.json'), false);
       if (failure === 'api') throw new Error('Mock OpenAI failure');
       if (failure === 'validation') return JSON.stringify({ nodes: [], relations: [] });
+      if (failure === 'relation') return JSON.stringify({
+        nodes: [{ id: 'backend', name: 'Backend', type: 'service', evidence_paths: ['package.json'] }],
+        relations: [{ parent_id: 'backend', child_id: 'missing', label: 'uses' }],
+      });
       return JSON.stringify({
         nodes: [
           { id: 'backend', name: 'Backend', type: 'service', evidence_paths: ['package.json'] },
@@ -99,6 +103,10 @@ test('load saves a labeled map, nodes reads it, and failed reload preserves it',
     assert.deepEqual((await app.inject({ method: 'GET', url: nodesUrl })).json(), graph);
 
     failure = 'validation';
+    assert.equal((await app.inject({ method: 'POST', url: `/projects/${projectId}/load` })).statusCode, 500);
+    assert.equal(readFileSync(mapFile, 'utf8'), saved);
+
+    failure = 'relation';
     assert.equal((await app.inject({ method: 'POST', url: `/projects/${projectId}/load` })).statusCode, 500);
     assert.equal(readFileSync(mapFile, 'utf8'), saved);
   } finally {

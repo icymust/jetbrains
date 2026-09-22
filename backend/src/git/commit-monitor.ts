@@ -32,6 +32,9 @@ export async function readGitHead(path: string): Promise<string | null> {
 interface MonitorState {
   project: MonitoredProject;
   lastCommit: string | null;
+  analyzingCommit?: string | null;
+  failedCommit?: string | null;
+  retryAfter?: number;
   running: boolean;
   dirty: boolean;
   checking: boolean;
@@ -57,10 +60,23 @@ export class CommitMonitor {
     },
     private readonly readHead: ReadHead = readGitHead,
     private readonly intervalMs = 1000,
+    private readonly now: () => number = Date.now,
+    private readonly retryCooldownMs = 30_000,
   ) {}
 
   isMonitoring(id: string): boolean {
     return this.states.has(id);
+  }
+
+  restore(project: MonitoredProject, savedCommit: string | null): void {
+    if (this.stopped) throw new Error('Commit monitor is stopped');
+    if (this.states.has(project.id)) return;
+    const state: MonitorState = {
+      project, lastCommit: savedCommit, running: false, dirty: false, checking: false,
+    };
+    this.states.set(project.id, state);
+    state.timer = setInterval(() => { void this.checkNow(project.id); }, this.intervalMs);
+    void this.checkNow(project.id);
   }
 
   async load(project: MonitoredProject): Promise<Graph> {
@@ -75,7 +91,6 @@ export class CommitMonitor {
         project, lastCommit: commit, running: false, dirty: false, checking: false,
       };
       state.project = project;
-      state.lastCommit = commit;
       const graph = await this.run(state, commit);
 
       if (!existing && !this.stopped) {
@@ -102,12 +117,12 @@ export class CommitMonitor {
       state.checking = false;
     }
     if (this.states.get(id) !== state || commit === state.lastCommit) return;
-    this.log.info({ projectId: id, previousCommit: state.lastCommit, commit }, 'Git commit changed');
-    state.lastCommit = commit;
     if (state.running) {
-      state.dirty = true;
+      if (commit !== state.analyzingCommit) state.dirty = true;
       return;
     }
+    if (commit === state.failedCommit && this.now() < (state.retryAfter ?? 0)) return;
+    this.log.info({ projectId: id, previousCommit: state.lastCommit, commit }, 'Git commit changed');
     await this.runAutomatic(state, commit);
   }
 
@@ -122,13 +137,23 @@ export class CommitMonitor {
 
   private async run(state: MonitorState, commit: string | null): Promise<Graph> {
     state.running = true;
+    state.analyzingCommit = commit;
     try {
-      return await this.analyze(state.project, commit);
+      const graph = await this.analyze(state.project, commit);
+      state.lastCommit = commit;
+      state.failedCommit = undefined;
+      state.retryAfter = undefined;
+      return graph;
+    } catch (error) {
+      state.failedCommit = commit;
+      state.retryAfter = this.now() + this.retryCooldownMs;
+      throw error;
     } finally {
       state.running = false;
+      state.analyzingCommit = undefined;
       if (state.dirty && this.states.get(state.project.id) === state) {
         state.dirty = false;
-        void this.runAutomatic(state, state.lastCommit);
+        void this.checkNow(state.project.id);
       }
     }
   }

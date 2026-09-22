@@ -117,6 +117,65 @@ export async function getProjectNodes(id: string): Promise<Graph> {
   return request<Graph>(`/projects/${encodeURIComponent(id)}/nodes`)
 }
 
+export interface GitCommit {
+  hash: string
+  short_hash: string
+  message: string
+  author: string
+  /** ISO 8601, as the backend normalises it. */
+  date: string
+}
+
+/** The project's most recent commits, newest first. Reads git; no AI call. */
+export async function getProjectCommits(id: string): Promise<GitCommit[]> {
+  const { commits } = await request<{ commits: GitCommit[] }>(
+    `/projects/${encodeURIComponent(id)}/commits`,
+  )
+  return commits
+}
+
+export interface AuditImprovement {
+  title: string
+  description: string
+}
+
+export interface NodeAudit {
+  node_id: string
+  node_name: string
+  /** Integers 0–100. */
+  overall_score: number
+  optimization_score: number
+  maintainability_score: number
+  /** The backend's schema pins this at exactly two. */
+  improvements: AuditImprovement[]
+}
+
+/**
+ * Reads the node's evidence files and asks a model to score them. Slow and billed per
+ * call, so fire it deliberately rather than on every render.
+ */
+export async function auditNode(projectId: string, nodeId: string): Promise<NodeAudit> {
+  return request<NodeAudit>(
+    `/projects/${encodeURIComponent(projectId)}/nodes/${encodeURIComponent(nodeId)}/audit`,
+    { method: 'POST' },
+  )
+}
+
+export interface NodeTests {
+  total: number
+  passed: number
+  failed: number
+  /** Seconds. */
+  duration: number
+}
+
+/** Test figures for a node. No AI call; the backend derives these from the node id. */
+export async function getNodeTests(projectId: string, nodeId: string): Promise<NodeTests> {
+  return request<NodeTests>(
+    `/projects/${encodeURIComponent(projectId)}/nodes/${encodeURIComponent(nodeId)}/tests`,
+  )
+}
+
 export interface DirectoryEntry {
   name: string
   path: string

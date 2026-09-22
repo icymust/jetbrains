@@ -9,6 +9,8 @@ export interface NodeMenuState {
   openTests: (nodeId: string) => void
   /** Opens the Create Action modal. It lives outside the menu, which unmounts on close. */
   openCreateAction: () => void
+  /** Opens the Audit window for a node. */
+  openAudit: (nodeId: string) => void
   /** Opens the chat modal for a node, seeded with the action's question. */
   openChat: (nodeId: string, action: ChatAction) => void
 }
@@ -18,6 +20,7 @@ export const NodeMenuContext = createContext<NodeMenuState>({
   close: () => {},
   openTests: () => {},
   openCreateAction: () => {},
+  openAudit: () => {},
   openChat: () => {},
 })
 

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { CommitsCard } from '@/components/graph/CommitsCard'
-import { mockCommits } from '@/lib/mock-commits'
+import { useProjectCommits } from '@/lib/use-project-commits'
 import { GraphCanvas } from '@/components/graph/GraphCanvas'
 import { ThemeToggle } from '@/components/theme-toggle'
 import {
@@ -38,6 +38,7 @@ export default function ProjectGraph() {
   const [state, setState] = useState<State>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [tasksOpen, setTasksOpen] = useState(false)
+  const commits = useProjectCommits(id)
 
   useEffect(() => {
     let cancelled = false
@@ -177,6 +178,7 @@ export default function ProjectGraph() {
         <GraphCanvas
           // Rebuild the layout when a new analysis replaces the data.
           key={`${project.id}-${graph.nodes.length}-${graph.relations.length}`}
+          projectId={project.id}
           graph={graph}
           header={
             <div className="flex max-h-[calc(100dvh-4rem)] w-72 flex-col gap-3 overflow-y-auto">
@@ -195,7 +197,9 @@ export default function ProjectGraph() {
                 >
                   <RefreshCw />
                 </Button>
-                <ThemeToggle className="ml-auto" />
+                {/* Floats on the canvas: outline is see-through (and in dark mode
+                    bg-input/30 over a 17% token is barely there), so it gets a surface. */}
+                <ThemeToggle className="ml-auto bg-background dark:bg-background" />
               </div>
               <div>
                 <p className="text-sm font-semibold">{project.name}</p>
@@ -205,7 +209,9 @@ export default function ProjectGraph() {
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="secondary">{services} services</Badge>
-                <Badge variant="outline">{features} features</Badge>
+                <Badge variant="outline" className="bg-background">
+                  {features} features
+                </Badge>
                 {/* Same chip shape as the counts, but this one opens the list below it. */}
                 <Badge
                   render={
@@ -216,15 +222,21 @@ export default function ProjectGraph() {
                     />
                   }
                   variant={tasksOpen ? 'secondary' : 'outline'}
-                  className="cursor-pointer gap-1 hover:bg-muted"
+                  // Open, the secondary fill already covers the canvas; closed, the
+                  // outline variant needs one of its own.
+                  className={
+                    tasksOpen
+                      ? 'cursor-pointer gap-1 hover:bg-muted'
+                      : 'cursor-pointer gap-1 bg-background hover:bg-muted'
+                  }
                 >
-                  {mockCommits.length} tasks
+                  {commits.status === 'ready' ? `${commits.commits.length} commits` : 'Commits'}
                   <ChevronDown
                     className={tasksOpen ? 'size-3 rotate-180 transition-transform' : 'size-3 transition-transform'}
                   />
                 </Badge>
               </div>
-              {tasksOpen && <CommitsCard />}
+              {tasksOpen && <CommitsCard state={commits} />}
             </div>
           }
         />

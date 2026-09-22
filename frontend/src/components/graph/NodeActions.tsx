@@ -27,7 +27,7 @@ export function NodeActions({
   nodeId: string
   name: string
 }) {
-  const { close, openTests, openChat, openCreateAction } = useNodeMenu()
+  const { close, openTests, openChat, openCreateAction, openAudit } = useNodeMenu()
   const customActions = useCustomActions()
 
   return (
@@ -51,6 +51,10 @@ export function NodeActions({
               close()
               if (label === 'Test') {
                 openTests(nodeId)
+                return
+              }
+              if (label === 'Audit') {
+                openAudit(nodeId)
                 return
               }
               if (label === 'To chat' || label === 'Explain') {

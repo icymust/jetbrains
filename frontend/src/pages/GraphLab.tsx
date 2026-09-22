@@ -21,6 +21,8 @@ import FeatureNode from '@/components/graph/FeatureNode'
 import ServiceNode from '@/components/graph/ServiceNode'
 import { toFlowGraph, type FlowNode } from '@/lib/graph-layout'
 import { mockGraph } from '@/lib/mock-graph'
+import { useTheme } from '@/lib/theme-context'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 const nodeTypes = {
   service: ServiceNode,
@@ -31,6 +33,7 @@ const nodeTypes = {
 const graph = mockGraph
 
 export default function GraphLab() {
+  const { theme } = useTheme()
   const initial = useMemo(() => toFlowGraph(graph), [])
 
   const [nodes, , onNodesChange] = useNodesState<FlowNode>(initial.nodes)
@@ -57,7 +60,7 @@ export default function GraphLab() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        colorMode="dark"
+        colorMode={theme}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.2}
@@ -75,6 +78,7 @@ export default function GraphLab() {
                 <Badge variant="secondary">{counts.services} services</Badge>
                 <Badge variant="outline">{counts.features} features</Badge>
               </div>
+              <ThemeToggle className="ml-auto" />
             </div>
             <GraphLegend />
           </div>

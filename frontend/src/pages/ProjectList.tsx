@@ -22,6 +22,7 @@ import {
   ItemTitle,
 } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { ApiError, listProjects, type Project } from '@/lib/api'
 
 type State =
@@ -68,12 +69,15 @@ export default function ProjectList() {
           <p className="text-sm text-muted-foreground">{describe(state)}</p>
         </div>
 
-        {state.status === 'ready' && state.projects.length > 0 && (
-          <Button nativeButton={false} render={<Link to="/projects/new" />}>
-            <Plus />
-            Add project
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          {state.status === 'ready' && state.projects.length > 0 && (
+            <Button nativeButton={false} render={<Link to="/projects/new" />}>
+              <Plus />
+              Add project
+            </Button>
+          )}
+        </div>
       </header>
 
       {state.status === 'loading' && <ProjectSkeletons />}

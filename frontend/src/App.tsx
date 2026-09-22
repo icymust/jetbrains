@@ -1,11 +1,14 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Toaster } from '@/components/ui/sonner'
+import { useTheme } from '@/lib/theme-context'
 import AddProject from './pages/AddProject'
 import GraphLab from './pages/GraphLab'
 import GraphPage from './pages/GraphPage'
 import ProjectList from './pages/ProjectList'
 
 export default function App() {
+  const { theme } = useTheme()
+
   return (
     <>
       <Routes>
@@ -15,9 +18,8 @@ export default function App() {
         <Route path="/graph-lab" element={<GraphLab />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      {/* The app is fixed to dark via the `dark` class on <html>; say so rather than
-          letting the toaster fall back to the OS preference. */}
-      <Toaster theme="dark" />
+      {/* Toasts render outside the themed tree, so hand them the current theme. */}
+      <Toaster theme={theme} />
     </>
   )
 }

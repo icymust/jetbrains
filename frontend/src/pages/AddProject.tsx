@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { ApiError, createProject, loadProject, type Project } from '@/lib/api'
 
 type Phase = 'idle' | 'creating' | 'analyzing'
@@ -98,16 +99,19 @@ export default function AddProject() {
 
   return (
     <main className="mx-auto w-full max-w-lg px-6 py-12">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mb-6 -ml-2"
-        nativeButton={false}
-        render={<Link to="/" />}
-      >
-        <ArrowLeft />
-        Back to projects
-      </Button>
+      <div className="mb-6 flex items-center justify-between">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2"
+          nativeButton={false}
+          render={<Link to="/" />}
+        >
+          <ArrowLeft />
+          Back to projects
+        </Button>
+        <ThemeToggle />
+      </div>
 
       <Card>
         <CardHeader>

@@ -8,6 +8,7 @@ import { analyzeProject, createOpenAIRequester, type GraphRequester } from '../a
 import { scanProject } from '../analyzer/scanner.js';
 import { toPublicGraph } from '../analyzer/types.js';
 import { AnalysisBusyError, CommitMonitor, type MonitoredProject } from '../git/commit-monitor.js';
+import { readGitCommits, type ReadGitCommits } from '../git/commit-history.js';
 import { readProjectMap, saveProjectMap } from '../map/project-map-file.js';
 
 interface Project {
@@ -49,6 +50,7 @@ export function registerProjectRoutes(
   app: FastifyInstance,
   database: DatabaseSync,
   requester: GraphRequester = createOpenAIRequester(),
+  readCommits: ReadGitCommits = readGitCommits,
 ): void {
   const findProject = (id: string): Project | undefined =>
     database.prepare('SELECT id, name, path FROM projects WHERE id = ?').get(id) as Project | undefined;
@@ -126,6 +128,39 @@ export function registerProjectRoutes(
       return reply.code(404).send({ error: 'Project not found' });
     }
     return project;
+  });
+
+  app.get<{ Params: { id: string } }>('/projects/:id/commits', async (request, reply) => {
+    const project = findProject(request.params.id);
+    if (!project) return reply.code(404).send({ error: 'Project not found' });
+
+    try {
+      if (!statSync(project.path).isDirectory()) {
+        return reply.code(404).send({ error: 'Project repository not found' });
+      }
+    } catch {
+      return reply.code(404).send({ error: 'Project repository not found' });
+    }
+
+    try {
+      if (execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+        cwd: project.path,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 5000,
+      }).trim() !== 'true') {
+        return reply.code(400).send({ error: 'Project path is not a Git working tree' });
+      }
+    } catch {
+      return reply.code(400).send({ error: 'Project path is not a Git working tree' });
+    }
+
+    try {
+      return { commits: await readCommits(project.path) };
+    } catch (error) {
+      app.log.error({ projectId: project.id, err: error }, 'Git commit history read failed');
+      return reply.code(500).send({ error: 'Git commit history could not be read' });
+    }
   });
 
   app.post<{ Params: { id: string } }>('/projects/:id/load', async (request, reply) => {

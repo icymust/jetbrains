@@ -172,10 +172,13 @@ export function GraphCanvas({
             {/* One right-hand column, so the Tests window docks under the info card. The
                 marker lets the Tests card tell outside clicks from ones on this sidebar.
                 It is capped and scrolls: both cards open would otherwise run past the
-                bottom of the window, putting the lower one out of reach. */}
+                bottom of the window, putting the lower one out of reach. The padding
+                keeps the cards' edges intact — a scroll container clips at its padding
+                box, and a ring or shadow paints outside the border box, so with no room
+                they get sheared flush. The negative margin cancels it for layout. */}
             <div
               data-graph-sidebar
-              className="flex max-h-[calc(100dvh-4rem)] w-72 flex-col gap-3 overflow-y-auto"
+              className="-m-1 flex max-h-[calc(100dvh-4rem)] w-[calc(18rem+0.5rem)] flex-col gap-3 overflow-y-auto p-1"
             >
               {selectedNode && (
                 <NodeInspector

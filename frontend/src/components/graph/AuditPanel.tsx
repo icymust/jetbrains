@@ -87,7 +87,7 @@ export function AuditPanel({
   const running = !audit && !error
 
   return (
-    <Card className="w-full shadow-lg">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="pr-8 text-base leading-tight">Audit</CardTitle>
         <Button

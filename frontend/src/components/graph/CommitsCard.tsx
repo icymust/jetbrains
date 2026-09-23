@@ -80,7 +80,7 @@ export function CommitsCard({ state }: { state: CommitsState }) {
 /** The card around whichever state is showing, so they share one frame. */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <Card className="w-full shadow-lg">
+    <Card className="w-full">
       <CardContent className="p-0">{children}</CardContent>
     </Card>
   )

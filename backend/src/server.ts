@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import { registerCustomActionRoutes } from './actions/custom-action.routes.js';
 import { config } from './config.js';
 import { registerLocalCors } from './cors.js';
 import { openDatabase } from './db/db.js';
@@ -10,6 +11,7 @@ const app = Fastify({ logger: true });
 
 await registerLocalCors(app);
 registerProjectRoutes(app, database);
+registerCustomActionRoutes(app, database);
 registerBrowseRoutes(app);
 
 app.addHook('onClose', async () => {

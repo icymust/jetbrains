@@ -176,6 +176,81 @@ export async function getNodeTests(projectId: string, nodeId: string): Promise<N
   )
 }
 
+export interface CustomAction {
+  id: string
+  name: string
+  icon: string
+  prompt: string
+}
+
+export interface CustomActionExecution {
+  action_id: string
+  action_name: string
+  node_id: string
+  node_name: string
+  status: 'done'
+  output: string
+}
+
+function customActionsPath(projectId: string, nodeId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/nodes/${encodeURIComponent(nodeId)}/actions`
+}
+
+/** Persistent actions for one service node. Listing does not call AI. */
+export async function getCustomActions(
+  projectId: string,
+  nodeId: string,
+  signal?: AbortSignal,
+): Promise<CustomAction[]> {
+  const { actions } = await request<{ actions: CustomAction[] }>(
+    customActionsPath(projectId, nodeId),
+    { signal },
+  )
+  return actions
+}
+
+/** Stores an action definition. Creating it does not call AI. */
+export async function createCustomAction(
+  projectId: string,
+  nodeId: string,
+  input: Pick<CustomAction, 'name' | 'icon' | 'prompt'>,
+): Promise<CustomAction> {
+  return request<CustomAction>(customActionsPath(projectId, nodeId), {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+/** Runs one custom action. This is the only custom-action request that calls AI. */
+export async function executeCustomAction(
+  projectId: string,
+  nodeId: string,
+  actionId: string,
+  additionalInstructions?: string,
+): Promise<CustomActionExecution> {
+  return request<CustomActionExecution>(
+    `${customActionsPath(projectId, nodeId)}/${encodeURIComponent(actionId)}/execute`,
+    {
+      method: 'POST',
+      body: JSON.stringify(
+        additionalInstructions ? { additional_instructions: additionalInstructions } : {},
+      ),
+    },
+  )
+}
+
+/** Permanently removes one custom action. Deleting it does not call AI. */
+export async function deleteCustomAction(
+  projectId: string,
+  nodeId: string,
+  actionId: string,
+): Promise<void> {
+  await request<{ deleted: true }>(
+    `${customActionsPath(projectId, nodeId)}/${encodeURIComponent(actionId)}`,
+    { method: 'DELETE' },
+  )
+}
+
 export interface DirectoryEntry {
   name: string
   path: string

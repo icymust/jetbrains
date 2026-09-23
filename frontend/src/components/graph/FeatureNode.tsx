@@ -7,11 +7,11 @@ import { CentreHandles, NodeActions } from './NodeActions'
 
 /** A single piece of functionality, always owned by exactly one service. */
 export default function FeatureNode({ id, data, selected }: NodeProps<FlowNode>) {
-  const { openNodeId } = useNodeMenu()
+  const { openNodeId, projectId } = useNodeMenu()
 
   return (
     <>
-      <NodeActions visible={openNodeId === id} nodeId={id} name={data.label} />
+      <NodeActions visible={openNodeId === id} projectId={projectId} nodeId={id} name={data.label} nodeType="feature" />
 
       <div
         style={{ width: FEATURE_SIZE, height: FEATURE_SIZE }}

@@ -13,4 +13,13 @@ Node actions use the selected node from the saved project map:
 - `GET /projects/:projectId/nodes/:nodeId/explain` returns a short prepared chat prompt. It does not call AI or generate an explanation.
 - `POST /projects/:projectId/nodes/:nodeId/audit` sends only the selected node's saved evidence and related map context to the configured OpenAI model. It returns three integer scores from 0 to 100 and exactly two improvement suggestions.
 
+Service nodes also support persistent custom AI actions stored in SQLite:
+
+- `POST /projects/:projectId/nodes/:nodeId/actions` creates an action from a name, icon, and prompt without calling AI.
+- `GET /projects/:projectId/nodes/:nodeId/actions` lists that service's saved actions without calling AI.
+- `POST /projects/:projectId/nodes/:nodeId/actions/:actionId/execute` runs one saved action against the service's safe repository context and returns text from the configured OpenAI model.
+- `DELETE /projects/:projectId/nodes/:nodeId/actions/:actionId` permanently deletes an action without calling AI.
+
+Custom actions are supported only for service nodes. They survive backend restarts and graph regeneration because they are stored separately from `ProjectMap.json`.
+
 After a successful load, this server process checks Git HEAD every second and refreshes the map when a commit changes. Uncommitted edits do not trigger a refresh. Monitoring stops when the server stops; after a restart, call `/load` again to resume monitoring. A repository without a commit can be loaded, and its first commit triggers a refresh.

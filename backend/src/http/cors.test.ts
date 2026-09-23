@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import Fastify from 'fastify';
 import { registerLocalCors } from '../cors.js';
 
-test('CORS permits local frontend origins and POST preflight only', async () => {
+test('CORS permits local frontend origins and custom-action methods', async () => {
   const app = Fastify();
   await registerLocalCors(app);
   app.get('/projects', async () => ({ projects: [] }));
@@ -26,6 +26,16 @@ test('CORS permits local frontend origins and POST preflight only', async () => 
     assert.equal(preflight.headers['access-control-allow-origin'], 'http://localhost:5173');
     assert.match(String(preflight.headers['access-control-allow-methods']), /POST/);
     assert.match(String(preflight.headers['access-control-allow-headers']), /content-type/i);
+
+    const deletePreflight = await app.inject({
+      method: 'OPTIONS', url: '/projects/project/nodes/service/actions/action',
+      headers: {
+        origin: 'http://localhost:5173',
+        'access-control-request-method': 'DELETE',
+      },
+    });
+    assert.equal(deletePreflight.statusCode, 204);
+    assert.match(String(deletePreflight.headers['access-control-allow-methods']), /DELETE/);
 
     for (const origin of ['https://localhost:5173', 'http://localhost.evil.test:5173', 'http://example.com']) {
       const response = await app.inject({ method: 'GET', url: '/projects', headers: { origin } });

@@ -7,11 +7,11 @@ import { CentreHandles, NodeActions } from './NodeActions'
 
 /** A major architecture component: the large anchor other nodes orbit. */
 export default function ServiceNode({ id, data, selected }: NodeProps<FlowNode>) {
-  const { openNodeId } = useNodeMenu()
+  const { openNodeId, projectId } = useNodeMenu()
 
   return (
     <>
-      <NodeActions visible={openNodeId === id} nodeId={id} name={data.label} />
+      <NodeActions visible={openNodeId === id} projectId={projectId} nodeId={id} name={data.label} nodeType="service" />
 
       <div
         style={{ width: SERVICE_SIZE, height: SERVICE_SIZE }}

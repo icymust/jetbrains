@@ -15,7 +15,6 @@ import '@xyflow/react/dist/style.css'
 import { Button } from '@/components/ui/button'
 import { AuditPanel } from '@/components/graph/AuditPanel'
 import { ChatDialog } from '@/components/graph/ChatDialog'
-import { CreateActionDialog } from '@/components/graph/CreateActionDialog'
 import { GraphSearch } from '@/components/graph/GraphSearch'
 import { NodeInspector } from '@/components/graph/NodeInspector'
 import { TestsPanel } from '@/components/graph/TestsPanel'
@@ -62,7 +61,6 @@ export function GraphCanvas({
   const [testsNodeId, setTestsNodeId] = useState<string | null>(null)
   /** The node and action the chat modal was opened from, or null while it is closed. */
   const [chat, setChat] = useState<{ nodeId: string; action: ChatAction } | null>(null)
-  const [createActionOpen, setCreateActionOpen] = useState(false)
   /** The minimap starts hidden; its toggle sits where the minimap's own corner is. */
   const [minimapOpen, setMinimapOpen] = useState(false)
   /** The node the Audit window was opened for. */
@@ -79,20 +77,19 @@ export function GraphCanvas({
     (nodeId: string, action: ChatAction) => setChat({ nodeId, action }),
     [],
   )
-  const openCreateAction = useCallback(() => setCreateActionOpen(true), [])
   const openAudit = useCallback((nodeId: string) => setAuditNodeId(nodeId), [])
   const closeAudit = useCallback(() => setAuditNodeId(null), [])
   // Memoised so opening a menu does not re-render every node through the context.
   const menu = useMemo(
     () => ({
+      projectId,
       openNodeId: menuNodeId,
       close: closeMenu,
       openTests,
       openChat,
-      openCreateAction,
       openAudit,
     }),
-    [menuNodeId, closeMenu, openTests, openChat, openCreateAction, openAudit],
+    [projectId, menuNodeId, closeMenu, openTests, openChat, openAudit],
   )
 
   const testsNode = testsNodeId
@@ -259,9 +256,6 @@ export function GraphCanvas({
           onClose={() => setChat(null)}
         />
       )}
-
-      {/* Outside ReactFlow: the menu that opens it unmounts as soon as it is dismissed. */}
-      <CreateActionDialog open={createActionOpen} onOpenChange={setCreateActionOpen} />
     </NodeMenuContext>
   )
 }

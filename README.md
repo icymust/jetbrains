@@ -4,7 +4,7 @@ AI coding agents can generate and change large amounts of code quickly. As a pro
 
 CodeOrbit analyzes a local Git repository and turns repository evidence into an interactive architecture and functionality graph. Large nodes represent services or applications, smaller nodes represent meaningful domain features, and labeled edges describe relationships such as `contains`, HTTP, WebSocket, gRPC, `uses`, `manages`, and other connections supported by the code.
 
-CodeOrbit is currently a local web application built for a hackathon. The longer-term direction is a JetBrains plugin that connects project context to JetBrains AI Chat.
+CodeOrbit is currently a local web application built for a hackathon. The longer-term direction is a plugin for **Air, the new JetBrains development environment**, connecting project context to JetBrains AI Chat.
 
 ## How it works
 
@@ -192,7 +192,7 @@ Initial analysis, automatic commit refreshes, and Audit require OpenAI API acces
 - Explain demonstrates a ready-to-send contextual prompt.
 - The web Audit button still needs to be connected to the implemented Audit endpoint.
 
-The planned JetBrains integration will use the same project and node context inside the IDE and AI Chat.
+The planned plugin for JetBrains Air will use the same project and node context inside the development environment and AI Chat.
 
 ## Additional documentation
 

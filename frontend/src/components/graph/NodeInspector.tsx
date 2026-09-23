@@ -55,7 +55,7 @@ export function NodeInspector({
   }
 
   return (
-    <Card className="w-full shadow-lg">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle className="pr-8 text-base leading-tight">{node.name}</CardTitle>
         <Badge variant="secondary" className="w-fit capitalize">
